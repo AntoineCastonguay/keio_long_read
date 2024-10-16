@@ -55,12 +55,10 @@ class Keio(object):
             print('Skipping blast. Already done.')
 
         file = Methods.list_files_in_folder(blast_folder + 'all_res/', 'txt')
-        print(file)
         res = {}
         for f in file:
             barcode = f.split('/')[-1].split('_')[0]
             res[barcode] = f
-        print(res)
 
         # extract kan
         if not os.path.exists(done_extract):

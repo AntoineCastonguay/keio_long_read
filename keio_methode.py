@@ -3,6 +3,7 @@ import os
 import pathlib
 import gzip
 from glob import glob
+from Bio import SeqIO
 import csv
 
 
@@ -66,39 +67,28 @@ class Methods(object):
     def flag_done(flag_file):
         with open(flag_file, 'w') as f:
             pass
-
-    @staticmethod
-    def format_sequence(sequence, max_length=80):
-        return [sequence[i:i + max_length] for i in range(0, len(sequence), max_length)]
     
     @staticmethod
-    def fastq_to_fasta(fastq, output_folder):
+    def fastq_to_fasta(fastq_folder, output_folder):
         Methods.make_folder(output_folder)
 
         my_dict = {}
 
-        file = Methods.list_files_in_folder(fastq, 'fastq.gz')
-        for f in file:
+        files = Methods.list_files_in_folder(fastq_folder, 'fastq.gz')
+        for f in files:
             if "_barcode" in f:
                 barcode = f.split('_')[-1].split('.')[0]
                 print(f'\t{barcode}')
-                output_file = output_folder + barcode + '.fasta'
+                output_file = os.path.join(output_folder, f"{barcode}.fasta")
                 my_dict[barcode] = output_file
-                with gzip.open(f, "rt") as fastq_file, open(output_file, "w") as fasta_file:
-                    while True:
-                        # Lire 4 lignes à la fois (une entrée FASTQ)
-                        header = fastq_file.readline().strip()
-                        if not header:  # Vérifier si c'est la fin du fichier
-                            break
-                        sequence = fastq_file.readline().strip()
-                        plus_line = fastq_file.readline().strip()  # Ligne '+'
-                        quality = fastq_file.readline().strip()  # Ligne de qualité
 
-                        # Écrire en format FASTA
-                        fasta_file.write(f">{header[1:]}\n")
-                        formatted_sequences = Methods.format_sequence(sequence, max_length=80)
-                        for seq_line in formatted_sequences:
-                            fasta_file.write(f"{seq_line}\n")
+                with gzip.open(f, "rt") as fastq_file:
+                    with open(output_file, "w") as fasta_file:
+                        # Utiliser SeqIO pour lire les enregistrements FASTQ et écrire en FASTA
+                        for record in SeqIO.parse(fastq_file, "fastq"):
+                            # Écrire au format FASTA
+                            fasta_file.write(f">{record.id}\n")
+                            fasta_file.write(f"{str(record.seq)}\n")  # Écriture de la séquence directement
         
         return my_dict
 
@@ -125,20 +115,8 @@ class Methods(object):
         for key,f in res.items():
             print(f'\t{key}')
 
-            lignes_a_conserver = []
-
             with open(f, "r") as file:
                 reader = csv.reader(file, delimiter="\t")
                 for row in reader:
-                    try:
-                        if float(row[3]) >= 95:
-                            lignes_a_conserver.append(row)
-                        else:
-                            print(f"Supprimée: {row}")
-                    except ValueError:
-                        print(f"Erreur de conversion: {row[3]}, ligne non modifiée.")
-                        lignes_a_conserver.append(row)
+                    print(f'{row[2]} {row[8]} {row[9]}')
 
-            with open(f, "w", newline="") as file:
-                writer = csv.writer(file, delimiter="\t")
-                writer.writerows(lignes_a_conserver)

@@ -67,7 +67,7 @@ class Keio(object):
         if not os.path.exists(done_extract):
             print('Extract...')
             Methods.extract(res, read, extract_folder)
-            #Methods.flag_done(done_extract)
+            Methods.flag_done(done_extract)
         else:
             print('Skipping extract. Already done.')
 

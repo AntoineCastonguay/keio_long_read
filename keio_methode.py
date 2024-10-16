@@ -11,6 +11,7 @@ from itertools import groupby
 from glob import glob
 import pysam
 import warnings
+from Bio import SeqIO
 
 
 class Methods(object):
@@ -99,80 +100,34 @@ class Methods(object):
     def flag_done(flag_file):
         with open(flag_file, 'w') as f:
             pass
-        
+
     @staticmethod
-    def alignment(genome, primer, output):
-        print('Alignment processing...')
+    def fastq_to_fasta(fastq, output_folder):
+        Methods.make_folder(output_folder)
 
-        file = Methods.list_files_in_folder(primer, 'fa')
-        mon_dict = {}
+        my_dict = {}
 
+        file = Methods.list_files_in_folder(fastq, 'fastq.gz')
         for f in file:
-            name_file = os.path.basename(f)
-            name = os.path.splitext(name_file)[0]
-            number = name[-1]
-            base = name[:-1]
-            if base not in mon_dict:
-                mon_dict[base] = {}
-            mon_dict[base][number] = f
-
-        # Crée le dossier de sortie si nécessaire
-        os.makedirs(output, exist_ok=True)
-
-        # Alignment BWA
-        BWA_index_cmd = ['bwa', 'index', genome]
-        subprocess.run(BWA_index_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-
-        for key, sub_dict in mon_dict.items():
-            BWA_cmd = ['bwa', 'mem', genome, sub_dict['1'], sub_dict['2']]
-            with open(f'{output}/BWA_output.sam', 'w') as outfile, open(os.devnull, 'w') as errfile:
-                subprocess.run(BWA_cmd, stdout=outfile, stderr=errfile)
+            barcode = f.split('_')[-1].split('.')[0]
+            output_file = output_folder + barcode + '.fasta'
+            my_dict[barcode] = output_file
+            with gzip.open(f, "rt") as fastq_file, open(output_file, "w") as fasta_file:
+                SeqIO.convert(fastq_file, "fastq", fasta_file, "fasta")
+        
+        return my_dict
 
     @staticmethod
-    def extract_primer_positions(sam_file, essentiel_file):
-        print('Extrat position primer...')
-        primer_positions = {}
-        with open(essentiel_file,'r') as file:
-            liste_gene_essentiel = [ligne.strip() for ligne in file]
+    def blast(read, ref, output_folder):
+        Methods.make_folder(output_folder)
+        for key,f in read.items():
+            out = f'{output_folder}{key}/'
+            Methods.make_folder(out)
+            makeblastdb_cmd = ['makeblastdb', '-in', f, '-dbtype', 'nucl', '-out', f'{out}{key}_reads_db']
+            subprocess.run(makeblastdb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
-        with open(sam_file, 'r') as file:
-            for line in file:
-                # Ignorer les lignes d'en-tête
-                if line.startswith('@'):
-                    continue
+            out_res = f'{output_folder}all_res/'
+            Methods.make_folder(out_res)
+            blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', f'{out_res}{key}_results.txt', '-outfmt', '6']
+            subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
-                # Séparer la ligne en colonnes
-                columns = line.strip().split('\t')
-                read_id = columns[0]  # ID de la lecture
-                flag = int(columns[1])  # Flag de la lecture
-                position = int(columns[3])  # Position d'alignement
-                qualite = columns[5]  #qualité alignment
-                postion_mate = int(columns[7])
-                length = int(columns[8])
-
-                if read_id in liste_gene_essentiel:
-                    essentiel = True
-                else:
-                    essentiel = False
-
-                list_var = [position,qualite,postion_mate,length, essentiel]
-
-                if read_id not in primer_positions:
-                    primer_positions[read_id] = {}
-                primer_positions[read_id][flag] = list_var
-
-        return primer_positions
-    
-    @staticmethod
-    def write_result(data,output):
-        print('Creation of result file...')
-
-        Methods.make_folder(output)
-        with open(f'{output}/output.txt', 'w') as f:
-            f.write(f"gene\tflag\tfirst_pos\tsecond_pos\tlength\tquality\tessentiel\n")
-            for read_id, sub_dict in data.items():
-                for flag, list_var in sub_dict.items():
-                    if flag == 99 or flag == 147:
-                        f.write(f"{read_id}\t{flag}\t{list_var[0]}\t{list_var[2]}\t{list_var[3]}\t{list_var[1]}\t{list_var[4]}\n")
-                    else:
-                        f.write(f"{read_id}\t{flag}\t{list_var[0]}\t{list_var[2]}\t{list_var[3]}\t{list_var[1]}\t{list_var[4]}\n")

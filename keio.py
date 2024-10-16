@@ -14,7 +14,7 @@ class Keio(object):
         # I/O
         self.input = os.path.abspath(args.input)
         self.output_folder = os.path.abspath(args.output)
-        self.ref_genome = os.path.abspath(args.genome)
+        self.ref = os.path.abspath(args.reference)
 
         # Performance
         self.cpu = args.threads
@@ -26,37 +26,48 @@ class Keio(object):
     def run(self):
         print('Checking a few things...')
         Methods.check_input(self.input)
-        Methods.check_ref(self.ref_genome)
+        Methods.check_ref(self.ref)
 
         # Check if number of CPU and memory requested are valid
         self.cpu, self.parallel = Methods.check_cpus(self.cpu, self.parallel)
         self.mem = Methods.check_mem(self.mem)
 
-        done_extract = self.output_folder + '/done_extract'
+        done_convert = self.output_folder + '/done_convert'
+        done_blast = self.output_folder + '/done_blast'
         done_result = self.output_folder + '/done_result'
 
-        extract_folder = os.path.join(self.output_folder, '1_extract/')
-        result_folder = os.path.join(self.output_folder, '2_result/')
+        convert_folder = os.path.join(self.output_folder, '1_convert/')
+        blast_folder = os.path.join(self.output_folder, '2_blast/')
+        result_folder = os.path.join(self.output_folder, '3_result/')
 
         Methods.make_folder(self.output_folder)
         print('\tAll good!')
 
-        # Extraction
-        if not os.path.exists(done_extract):
-            Methods.alignment(self.ref_genome, self.input, extract_folder)
-            #Methods.flag_done(done_extract)
+        # convert
+        if not os.path.exists(done_convert):
+            print('Convert fastq to fasta...')
+            read = Methods.fastq_to_fasta(self.input, convert_folder)
+            #Methods.flag_done(done_convert)
         else:
-            print('Skipping extract. Already done.')
+            print('Skipping convert. Already done.')
 
-        sam_file = Methods.find_sam_files(extract_folder)
-
-        # Manipulation
-        if not os.path.exists(done_result):
-            position = Methods.extract_primer_positions(sam_file[0], self.essentiel)
-            Methods.write_result(position, result_folder)
-            #Methods.flag_done(done_result)
+        # blast
+        if not os.path.exists(done_blast):
+            print('Blast...')
+            Methods.blast(read, self.ref, blast_folder)
+            #Methods.flag_done(done_blast)
         else:
-            print('Skipping result. Already done.')
+            print('Skipping blast. Already done.')
+
+        #sam_file = Methods.find_sam_files(blast_folder)
+
+        ## Manipulation
+        #if not os.path.exists(done_result):
+        #    position = Methods.blast_primer_positions(sam_file[0], self.essentiel)
+        #    Methods.write_result(position, result_folder)
+        #    #Methods.flag_done(done_result)
+        #else:
+        #    print('Skipping result. Already done.')
 
         print('DONE!')
 
@@ -64,10 +75,10 @@ if __name__ == "__main__":
     max_cpu = cpu_count()
     max_mem = int(virtual_memory().total * 0.85 / 1000000000)  # in GB
 
-    parser = ArgumentParser(description='Extract, assemble and compare Nanopore reads matching a reference sequence.')
-    parser.add_argument('-g', '--genome', 
+    parser = ArgumentParser(description='blast, assemble and compare Nanopore reads matching a reference sequence.')
+    parser.add_argument('-r', '--reference', 
                         required=True, 
-                        help='Reference genome for primer mapping. Mandatory.')
+                        help='Reference reference for primer mapping. Mandatory.')
     parser.add_argument('-i', '--input', 
                         required=True, 
                         help='Folder that contains the fasta files or individual fasta file. Mandatory.') 
@@ -89,4 +100,4 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--version', action='version', version=f'{os.path.basename(__file__)}: version {__version__}')
     
     arguments = parser.parse_args()
-    Ecoli(arguments)
+    Keio(arguments)

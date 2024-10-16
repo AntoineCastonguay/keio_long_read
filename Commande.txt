@@ -1,1 +1,3 @@
 Commande utile
+
+python3 keio.py -r data/KEIO_KAN.fa -i data/read/ -o res/out1/

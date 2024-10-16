@@ -59,16 +59,6 @@ class Keio(object):
         else:
             print('Skipping blast. Already done.')
 
-        #sam_file = Methods.find_sam_files(blast_folder)
-
-        ## Manipulation
-        #if not os.path.exists(done_result):
-        #    position = Methods.blast_primer_positions(sam_file[0], self.essentiel)
-        #    Methods.write_result(position, result_folder)
-        #    #Methods.flag_done(done_result)
-        #else:
-        #    print('Skipping result. Already done.')
-
         print('DONE!')
 
 if __name__ == "__main__":

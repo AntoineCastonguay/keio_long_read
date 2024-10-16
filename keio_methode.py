@@ -109,11 +109,12 @@ class Methods(object):
 
         file = Methods.list_files_in_folder(fastq, 'fastq.gz')
         for f in file:
-            barcode = f.split('_')[-1].split('.')[0]
-            output_file = output_folder + barcode + '.fasta'
-            my_dict[barcode] = output_file
-            with gzip.open(f, "rt") as fastq_file, open(output_file, "w") as fasta_file:
-                SeqIO.convert(fastq_file, "fastq", fasta_file, "fasta")
+            if "_barcode" in f:
+                barcode = f.split('_')[-1].split('.')[0]
+                output_file = output_folder + barcode + '.fasta'
+                my_dict[barcode] = output_file
+                with gzip.open(f, "rt") as fastq_file, open(output_file, "w") as fasta_file:
+                    SeqIO.convert(fastq_file, "fastq", fasta_file, "fasta")
         
         return my_dict
 

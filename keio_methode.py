@@ -187,3 +187,42 @@ class Methods(object):
             BWA_cmd = ['bwa', 'mem', ref, left, right]
             with open(f'{output_folder}/{key}BWA.sam', 'w') as outfile, open(os.devnull, 'w') as errfile:
                     subprocess.run(BWA_cmd, stdout=outfile, stderr=errfile)
+
+    @staticmethod
+    def extract_primer_positions(sam_file):
+        print('Extrat position primer...')
+        read_id_positions = {}
+
+        with open(sam_file, 'r') as file:
+            for line in file:
+                # Ignorer les lignes d'en-tête
+                if line.startswith('@'):
+                    continue
+
+                # Séparer la ligne en colonnes
+                columns = line.strip().split('\t')
+                read_id = columns[0]  # ID de la lecture
+                flag = int(columns[1])  # Flag de la lecture
+                position = int(columns[3])  # Position d'alignement
+                qualite = columns[5]  #qualité alignment
+                postion_mate = int(columns[7])
+                length = int(columns[8])
+
+                list_var = [position,postion_mate,length,qualite]
+
+                if read_id not in read_id_positions:
+                    read_id_positions[read_id] = {}
+                read_id_positions[read_id][flag] = list_var
+
+        return read_id_positions
+    
+    @staticmethod
+    def write_result(data,output):
+        print('Creation of result file...')
+
+        Methods.make_folder(output)
+        with open(f'{output}/output.txt', 'w') as f:
+            f.write(f"id\tflag\tfirst_pos\tsecond_pos\tlength\tquality\n")
+            for read_id, sub_dict in data.items():
+                for flag, list_var in sub_dict.items():
+                    f.write(f"{read_id}\t{flag}\t{list_var[0]}\t{list_var[1]}\t{list_var[2]}\t{list_var[3]}\n")

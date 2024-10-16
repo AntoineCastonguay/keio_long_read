@@ -3,7 +3,6 @@ import os
 import pathlib
 import gzip
 from glob import glob
-from Bio import SeqIO
 
 
 class Methods(object):
@@ -68,6 +67,10 @@ class Methods(object):
             pass
 
     @staticmethod
+    def format_sequence(sequence, max_length=80):
+        return [sequence[i:i + max_length] for i in range(0, len(sequence), max_length)]
+    
+    @staticmethod
     def fastq_to_fasta(fastq, output_folder):
         Methods.make_folder(output_folder)
 
@@ -80,7 +83,20 @@ class Methods(object):
                 output_file = output_folder + barcode + '.fasta'
                 my_dict[barcode] = output_file
                 with gzip.open(f, "rt") as fastq_file, open(output_file, "w") as fasta_file:
-                    SeqIO.convert(fastq_file, "fastq", fasta_file, "fasta")
+                    while True:
+                        # Lire 4 lignes à la fois (une entrée FASTQ)
+                        header = fastq_file.readline().strip()
+                        if not header:  # Vérifier si c'est la fin du fichier
+                            break
+                        sequence = fastq_file.readline().strip()
+                        plus_line = fastq_file.readline().strip()  # Ligne '+'
+                        quality = fastq_file.readline().strip()  # Ligne de qualité
+
+                        # Écrire en format FASTA
+                        fasta_file.write(f">{header[1:]}\n")
+                        formatted_sequences = Methods.format_sequence(sequence, max_length=80)
+                        for seq_line in formatted_sequences:
+                            fasta_file.write(f"{seq_line}\n")
         
         return my_dict
 

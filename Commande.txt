@@ -1,3 +1,37 @@
 Commande utile
 
 python3 keio.py -r data/KEIO_KAN.fa -i data/read/ -o res/out1/
+
+
+1. Installer pip localement avec get-pip.py
+
+Si pip n'est pas installé, vous pouvez l'installer localement pour l'utilisateur à l'aide du script get-pip.py. Voici comment procéder :
+Étapes :
+
+    Téléchargez le script get-pip.py :
+
+    bash
+
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+
+Installez pip uniquement pour votre utilisateur (pas besoin de sudo) :
+
+bash
+
+python3 get-pip.py --user
+
+Cela installera pip dans votre répertoire utilisateur, typiquement dans ~/.local/bin/.
+
+Ajoutez ~/.local/bin à votre variable d'environnement PATH, si ce n'est pas déjà fait :
+
+bash
+
+export PATH=$PATH:~/.local/bin
+
+Vérifiez l'installation de pip :
+
+bash
+
+pip --version
+
+pip install --user biopython

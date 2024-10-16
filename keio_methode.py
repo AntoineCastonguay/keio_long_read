@@ -109,14 +109,41 @@ class Methods(object):
 
     
     @staticmethod
-    def extract(res, ref, output_folder):
+    def extract(res, read, output_folder):
         Methods.make_folder(output_folder)
 
         for key,f in res.items():
             print(f'\t{key}')
 
+            dict_match = {}
+
             with open(f, "r") as file:
                 reader = csv.reader(file, delimiter="\t")
                 for row in reader:
-                    print(f'{row[2]} {row[8]} {row[9]}')
+                    if float(row[2]) > float(90) and int(row[3]) > 100:
+                        if key not in dict_match:
+                            dict_match[key] = {}
+
+                        if row[1] not in dict_match[key]:
+                            dict_match[key][row[1]] = [row[3], row[8], row[9]]
+                        elif row[3] > dict_match[key][row[1]][0]:
+                            dict_match[key][row[1]] = [row[3], row[8], row[9]]
+        
+            keys_barcode = list(dict_match[key].keys())
+            output_file = os.path.join(output_folder, f"{key}_selected_sequences.fasta")
+
+            with open(output_file, "w") as fasta_output:
+                # Parcours des séquences dans le fichier FASTA
+                found = False  # Variable pour vérifier si au moins une séquence a été trouvée
+                for record in SeqIO.parse(read[key], "fasta"):
+                    if record.id in keys_barcode:
+                        # Écrire la séquence au format FASTA
+                        fasta_output.write(f">{record.id}\n")
+                        fasta_output.write(f"{record.seq}\n")
+                        found = True
+
+                if not found:
+                    print(f"\tError : {key}_selected_sequences.fasta")
+                else:
+                    print(f"\tFichier FASTA created : {key}_selected_sequences.fasta")
 

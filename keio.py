@@ -37,7 +37,7 @@ class Keio(object):
         if not os.path.exists(done_convert):
             print('Convert fastq to fasta...')
             read = Methods.fastq_to_fasta(self.input, convert_folder)
-            #Methods.flag_done(done_convert)
+            Methods.flag_done(done_convert)
         else:
             print('Skipping convert. Already done.')
             file = Methods.list_files_in_folder(convert_folder, 'fasta')
@@ -50,7 +50,7 @@ class Keio(object):
         if not os.path.exists(done_blast):
             print('Blast...')
             Methods.blast(read, self.ref, blast_folder)
-            #Methods.flag_done(done_blast)
+            Methods.flag_done(done_blast)
         else:
             print('Skipping blast. Already done.')
 
@@ -63,7 +63,7 @@ class Keio(object):
         # extract kan
         if not os.path.exists(done_extract):
             print('Extract...')
-            Methods.extract(res, self.ref, extract_folder)
+            Methods.extract(res, read, extract_folder)
             #Methods.flag_done(done_extract)
         else:
             print('Skipping extract. Already done.')

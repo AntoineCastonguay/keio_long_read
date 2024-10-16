@@ -104,6 +104,7 @@ class Methods(object):
     def blast(read, ref, output_folder):
         Methods.make_folder(output_folder)
         for key,f in read.items():
+            print('/t'+key)
             out = f'{output_folder}{key}/'
             Methods.make_folder(out)
             makeblastdb_cmd = ['makeblastdb', '-in', f, '-dbtype', 'nucl', '-out', f'{out}{key}_reads_db']

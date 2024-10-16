@@ -84,11 +84,9 @@ class Methods(object):
 
                 with gzip.open(f, "rt") as fastq_file:
                     with open(output_file, "w") as fasta_file:
-                        # Utiliser SeqIO pour lire les enregistrements FASTQ et écrire en FASTA
                         for record in SeqIO.parse(fastq_file, "fastq"):
-                            # Écrire au format FASTA
                             fasta_file.write(f">{record.id}\n")
-                            fasta_file.write(f"{str(record.seq)}\n")  # Écriture de la séquence directement
+                            fasta_file.write(f"{str(record.seq)}\n")
         
         return my_dict
 
@@ -129,17 +127,22 @@ class Methods(object):
                         elif row[3] > dict_match[key][row[1]][0]:
                             dict_match[key][row[1]] = [row[3], row[8], row[9]]
         
-            keys_barcode = list(dict_match[key].keys())
-            output_file = os.path.join(output_folder, f"{key}_selected_sequences.fasta")
+            output_file_l = os.path.join(output_folder, f"{key}_l_selected_sequences.fasta")
+            output_file_r = os.path.join(output_folder, f"{key}_r_selected_sequences.fasta")
 
-            with open(output_file, "w") as fasta_output:
+            with open(output_file_l, "w") as fasta_output, open(output_file_r, "w") as fasta_output2:
                 # Parcours des séquences dans le fichier FASTA
                 found = False  # Variable pour vérifier si au moins une séquence a été trouvée
                 for record in SeqIO.parse(read[key], "fasta"):
-                    if record.id in keys_barcode:
+                    if record.id in dict_match[key]:
                         # Écrire la séquence au format FASTA
+                        a,b = 1,2
+                        if dict_match[key][record.id][a] > dict_match[key][record.id][b]:
+                            b,a = 1,2
                         fasta_output.write(f">{record.id}\n")
-                        fasta_output.write(f"{record.seq}\n")
+                        fasta_output.write(f"{record.seq[1:int(dict_match[key][record.id][a])]}\n")
+                        fasta_output2.write(f">{record.id}\n")
+                        fasta_output2.write(f"{record.seq[int(dict_match[key][record.id][b]):len(record.seq)]}\n")
                         found = True
 
                 if not found:
@@ -147,3 +150,40 @@ class Methods(object):
                 else:
                     print(f"\tFichier FASTA created : {key}_selected_sequences.fasta")
 
+    @staticmethod
+    def blast2(align, ref, output_folder):
+        Methods.make_folder(output_folder)
+
+        makeblastdb_cmd = ['makeblastdb', '-in', ref, '-dbtype', 'nucl', '-out', f'{output_folder}ref_db']
+        subprocess.run(makeblastdb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
+        
+        for key,f in align.items():
+            for pos,h in f.items():
+                print(f'\t{key} {pos}')
+
+                out_res = f'{output_folder}all_res/'
+                Methods.make_folder(out_res)
+                blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6']
+                subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
+
+
+    @staticmethod
+    def alignment(align,ref, output_folder):
+        Methods.make_folder(output_folder)
+
+        # Alignment BWA
+        BWA_index_cmd = ['bwa', 'index', ref]
+        subprocess.run(BWA_index_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+        for key,f in align.items():
+            for pos,h in f.items():
+                if pos == 'l':
+                    left = h
+                elif pos == 'r':
+                    right = h
+                else:
+                    print('Error')
+            print(f'\t{key}')
+            BWA_cmd = ['bwa', 'mem', ref, left, right]
+            with open(f'{output_folder}/{key}BWA.sam', 'w') as outfile, open(os.devnull, 'w') as errfile:
+                    subprocess.run(BWA_cmd, stdout=outfile, stderr=errfile)

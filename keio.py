@@ -14,6 +14,7 @@ class Keio(object):
         self.input = os.path.abspath(args.input)
         self.output_folder = os.path.abspath(args.output)
         self.ref = os.path.abspath(args.reference)
+        self.genome = os.path.abspath(args.genome)
 
         self.run()
 
@@ -25,10 +26,12 @@ class Keio(object):
         done_convert = self.output_folder + '/done_convert'
         done_blast = self.output_folder + '/done_blast'
         done_extract = self.output_folder + '/done_extract'
+        done_alignment = self.output_folder + '/done_alignment'
 
         convert_folder = os.path.join(self.output_folder, '1_convert/')
         blast_folder = os.path.join(self.output_folder, '2_blast/')
         extract_folder = os.path.join(self.output_folder, '3_extract/')
+        alignment_folder = os.path.join(self.output_folder, '4_alignment/')
 
         Methods.make_folder(self.output_folder)
         print('\tAll good!')
@@ -68,6 +71,30 @@ class Keio(object):
         else:
             print('Skipping extract. Already done.')
 
+        file = Methods.list_files_in_folder(extract_folder, 'fasta')
+        align = {}
+        for f in file:
+            barcode,pos = f.split('/')[-1].split('_')[0:2]
+            if barcode not in align:
+                align[barcode] = {}
+            align[barcode][pos] = f
+        
+        # alignment
+        if not os.path.exists(done_alignment):
+            print('Alignment...')
+            Methods.blast2(align,self.genome, alignment_folder)
+            #Methods.flag_done(done_alignment)
+        else:
+            print('Skipping alignment. Already done.')
+        
+        # alignment
+        if not os.path.exists(done_alignment):
+            print('Alignment...')
+            Methods.alignment(align,self.genome, alignment_folder)
+            #Methods.flag_done(done_alignment)
+        else:
+            print('Skipping alignment. Already done.')
+
         print('DONE!')
 
 if __name__ == "__main__":
@@ -75,7 +102,10 @@ if __name__ == "__main__":
     parser = ArgumentParser(description='blast, assemble and compare Nanopore reads matching a reference sequence.')
     parser.add_argument('-r', '--reference', 
                         required=True, 
-                        help='Reference reference for primer mapping. Mandatory.')
+                        help='Reference kanamycine')
+    parser.add_argument('-g', '--genome', 
+                        required=True, 
+                        help='Reference genome')
     parser.add_argument('-i', '--input', 
                         required=True, 
                         help='Folder that contains the fasta files or individual fasta file. Mandatory.') 

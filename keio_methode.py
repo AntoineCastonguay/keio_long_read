@@ -3,6 +3,7 @@ import os
 import pathlib
 import gzip
 from glob import glob
+import csv
 
 
 class Methods(object):
@@ -80,6 +81,7 @@ class Methods(object):
         for f in file:
             if "_barcode" in f:
                 barcode = f.split('_')[-1].split('.')[0]
+                print(f'\t{barcode}')
                 output_file = output_folder + barcode + '.fasta'
                 my_dict[barcode] = output_file
                 with gzip.open(f, "rt") as fastq_file, open(output_file, "w") as fasta_file:
@@ -104,7 +106,7 @@ class Methods(object):
     def blast(read, ref, output_folder):
         Methods.make_folder(output_folder)
         for key,f in read.items():
-            print('/t'+key)
+            print(f'\t{key}')
             out = f'{output_folder}{key}/'
             Methods.make_folder(out)
             makeblastdb_cmd = ['makeblastdb', '-in', f, '-dbtype', 'nucl', '-out', f'{out}{key}_reads_db']
@@ -115,3 +117,28 @@ class Methods(object):
             blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', f'{out_res}{key}_results.txt', '-outfmt', '6']
             subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
+    
+    @staticmethod
+    def extract(res, ref, output_folder):
+        Methods.make_folder(output_folder)
+
+        for key,f in res.items():
+            print(f'\t{key}')
+
+            lignes_a_conserver = []
+
+            with open(f, "r") as file:
+                reader = csv.reader(file, delimiter="\t")
+                for row in reader:
+                    try:
+                        if float(row[3]) >= 95:
+                            lignes_a_conserver.append(row)
+                        else:
+                            print(f"Supprimée: {row}")
+                    except ValueError:
+                        print(f"Erreur de conversion: {row[3]}, ligne non modifiée.")
+                        lignes_a_conserver.append(row)
+
+            with open(f, "w", newline="") as file:
+                writer = csv.writer(file, delimiter="\t")
+                writer.writerows(lignes_a_conserver)

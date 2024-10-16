@@ -24,11 +24,11 @@ class Keio(object):
 
         done_convert = self.output_folder + '/done_convert'
         done_blast = self.output_folder + '/done_blast'
-        done_result = self.output_folder + '/done_result'
+        done_extract = self.output_folder + '/done_extract'
 
         convert_folder = os.path.join(self.output_folder, '1_convert/')
         blast_folder = os.path.join(self.output_folder, '2_blast/')
-        result_folder = os.path.join(self.output_folder, '3_result/')
+        extract_folder = os.path.join(self.output_folder, '3_extract/')
 
         Methods.make_folder(self.output_folder)
         print('\tAll good!')
@@ -37,7 +37,7 @@ class Keio(object):
         if not os.path.exists(done_convert):
             print('Convert fastq to fasta...')
             read = Methods.fastq_to_fasta(self.input, convert_folder)
-            Methods.flag_done(done_convert)
+            #Methods.flag_done(done_convert)
         else:
             print('Skipping convert. Already done.')
             file = Methods.list_files_in_folder(convert_folder, 'fasta')
@@ -50,9 +50,25 @@ class Keio(object):
         if not os.path.exists(done_blast):
             print('Blast...')
             Methods.blast(read, self.ref, blast_folder)
-            Methods.flag_done(done_blast)
+            #Methods.flag_done(done_blast)
         else:
             print('Skipping blast. Already done.')
+
+        file = Methods.list_files_in_folder(blast_folder + 'all_res/', 'txt')
+        print(file)
+        res = {}
+        for f in file:
+            barcode = f.split('/')[-1].split('_')[0]
+            res[barcode] = f
+        print(res)
+
+        # extract kan
+        if not os.path.exists(done_extract):
+            print('Extract...')
+            Methods.extract(res, self.ref, extract_folder)
+            #Methods.flag_done(done_extract)
+        else:
+            print('Skipping extract. Already done.')
 
         print('DONE!')
 
@@ -67,7 +83,7 @@ if __name__ == "__main__":
                         help='Folder that contains the fasta files or individual fasta file. Mandatory.') 
     parser.add_argument('-o', '--output', 
                         required=True, 
-                        help='Folder to hold the result files. Mandatory.')
+                        help='Folder to hold the extract files. Mandatory.')
     parser.add_argument('-v', '--version', action='version', version=f'{os.path.basename(__file__)}: version {__version__}')
     
     arguments = parser.parse_args()

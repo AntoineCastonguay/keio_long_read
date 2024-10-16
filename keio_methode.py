@@ -1,15 +1,8 @@
 import subprocess
 import os
-import sys
-from concurrent import futures
 import pathlib
-from shutil import move
-from multiprocessing import cpu_count
 import gzip
-from itertools import groupby
 from glob import glob
-import pysam
-import warnings
 from Bio import SeqIO
 
 

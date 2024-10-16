@@ -4,7 +4,6 @@ import sys
 from concurrent import futures
 import pathlib
 from shutil import move
-from psutil import virtual_memory
 from multiprocessing import cpu_count
 import gzip
 from itertools import groupby
@@ -46,32 +45,6 @@ class Methods(object):
             first_character = first_header[0]
             if first_character != '>':
                 raise Exception('The reference file provided does not appear to be a valid fasta file.')
-
-    @staticmethod
-    def check_cpus(requested_cpu, n_proc):
-        total_cpu = cpu_count()
-
-        if 1 > requested_cpu > total_cpu:
-            requested_cpu = total_cpu
-            sys.stderr.write("Number of threads was set to {}".format(requested_cpu))
-        if 1 > n_proc > total_cpu:
-            n_proc = total_cpu
-            sys.stderr.write("Number of samples to parallel process was set to {}".format(total_cpu))
-
-        return requested_cpu, n_proc
-
-    @staticmethod
-    def check_mem(requested_mem):
-        max_mem = int(virtual_memory().total * 0.85 / 1000000000)  # in GB
-        if requested_mem:
-            if requested_mem > max_mem:
-                requested_mem = max_mem
-                sys.stderr.write("Requested memory was set higher than available system memory ({})".format(max_mem))
-                sys.stderr.write("Memory was set to {}".format(requested_mem))
-        else:
-            requested_mem = max_mem
-
-        return requested_mem
 
     @staticmethod
     def make_folder(folder):

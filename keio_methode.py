@@ -102,7 +102,7 @@ class Methods(object):
 
             out_res = f'{output_folder}all_res/'
             Methods.make_folder(out_res)
-            blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', f'{out_res}{key}_results.txt', '-outfmt', '6']
+            blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', f'{out_res}{key}_results.txt', '-outfmt', '6', '-max_target_seqs', '1']
             subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
     
@@ -163,7 +163,7 @@ class Methods(object):
 
                 out_res = f'{output_folder}all_res/'
                 Methods.make_folder(out_res)
-                blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6']
+                blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6', '-max_target_seqs', '1']
                 subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
 

@@ -5,6 +5,7 @@ import gzip
 from glob import glob
 from Bio import SeqIO
 import csv
+import pandas as pd
 
 
 class Methods(object):
@@ -180,7 +181,9 @@ class Methods(object):
                             output_file_txt[query_id] = {}
                         output_file_txt[query_id][pos] = list_var
             
-            with open(f'{output_folder}/{key}output.txt', 'w') as f:
+            out_output = f'{output_folder}all_output/'
+            Methods.make_folder(out_output)
+            with open(f'{out_output}{key}_aln_output.txt', 'w') as f:
                 f.write(f"query_id\tpos_1_l_subject\tpos_2_l_subject\tpos_1_r_subject\tpos_2_r_subject\tlenth_gene\n")
                 for query_id, sub_dict in output_file_txt.items():
                     test = []
@@ -195,3 +198,80 @@ class Methods(object):
                         f.write(f"{query_id}\tnd\tnd\t{test[1]}\t{test[2]}\tnd\n")
                     else:
                         f.write(f"{query_id} error \n")
+    @staticmethod
+    def resultat(out, pos, output_folder):
+        Methods.make_folder(output_folder)
+        ecoli_positif = pd.read_csv(pos)
+
+        for key, f in out.items():
+            rows = []  # Utilisation d'une liste temporaire pour stocker les lignes
+            test = pd.read_csv(f, sep='\t')
+            for i in range(len(test)):
+                if test['pos_2_l_subject'][i] != 'nd' and test['pos_1_r_subject'][i] != 'nd':
+                    try:
+                        pos_2_l = float(test['pos_2_l_subject'][i])
+                        pos_1_r = float(test['pos_1_r_subject'][i])
+                    except ValueError:
+                        continue
+                    
+                    # Vérifier et créer 'ens1'
+                    if pos_2_l > pos_1_r:
+                        ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
+                        var = 'l'
+                    else:
+                        ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
+                        var = 'r'
+
+                    print(test['query_id'][i])
+
+                    # Boucle à travers 'ecoli_positif'
+                    for j in range(len(ecoli_positif)):
+                        ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
+                        
+                        # Vérifier la longueur des séquences
+                        if len(ens1) > len(ens2):
+                            continue
+                        
+                        # Créer une table avec un comptage des correspondances et des erreurs
+                        tab = pd.Series([item in ens1 for item in ens2]).value_counts()
+
+                        if len(tab) == 2:
+                            print(tab)
+                            print(ecoli_positif['gene'][j])
+                            
+                            if var == 'l':
+                                pos_r_l = test['pos_2_l_subject'][i]
+                                pos_g_l = ecoli_positif['second_pos'][j]
+                                pos_r_r = test['pos_1_r_subject'][i]
+                                pos_g_r = ecoli_positif['first_pos'][j]
+                                res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
+                                res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]
+                            else:
+                                pos_r_l = test['pos_2_l_subject'][i]
+                                pos_g_l = ecoli_positif['first_pos'][j]
+                                pos_r_r = test['pos_1_r_subject'][i]
+                                pos_g_r = ecoli_positif['second_pos'][j]
+                                res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
+                                res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]
+
+                            # Ajouter une ligne au DataFrame
+                            new_row = {
+                                "query_id": test['query_id'][i],
+                                "match": tab.get(True, 0),
+                                "miss_match": tab.get(False, 0),
+                                "gene": ecoli_positif['gene'][j],
+                                "pos_l_read": pos_r_l,
+                                "pos_l_gene": pos_g_l,
+                                "diff_l": res_l,
+                                "pos_r_read": pos_r_r,
+                                "pos_r_gene": pos_g_r,
+                                "diff_r": res_r
+                            }
+                            rows.append(new_row)
+
+            # Convertir la liste de lignes en DataFrame
+            df = pd.DataFrame(rows)
+
+            # Sauvegarder dans un fichier CSV
+            output_file = f"{output_folder}{key}_resultats.csv"
+            df.to_csv(output_file, index=False)

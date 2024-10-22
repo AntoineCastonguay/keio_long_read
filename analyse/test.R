@@ -1,4 +1,4 @@
-test <- read.table("barcode02output.txt", header = T)
+test <- read.table("../keio_long_read/res/out4/4_alignment/all_output/barcode02_aln_output.txt", header = T)
 
 # Créer un data frame vide
 df <- data.frame(query_id = character(), 
@@ -24,7 +24,9 @@ for (i in 1:nrow(test)) {
       print(test$query_id[i])
     for (j in 1:(nrow(ecoli_positif))) {
       ens2 <- seq(ecoli_positif$first_pos[j], ecoli_positif$second_pos[j])
-      
+      if (length(ens1) > length(ens2)) {
+        next
+      }
       tab <- table(ens2 %in% ens1)
       if (length(tab) == 2) {
         print(tab)
@@ -62,3 +64,5 @@ for (i in 1:nrow(test)) {
     }
   }
 }
+
+write.csv(df,file = "../keio_long_read/analyse/b2.csv")

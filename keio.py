@@ -15,6 +15,7 @@ class Keio(object):
         self.output_folder = os.path.abspath(args.output)
         self.ref = os.path.abspath(args.reference)
         self.genome = os.path.abspath(args.genome)
+        self.position = os.path.abspath(args.position)
 
         self.run()
 
@@ -27,11 +28,13 @@ class Keio(object):
         done_blast = self.output_folder + '/done_blast'
         done_extract = self.output_folder + '/done_extract'
         done_alignment = self.output_folder + '/done_alignment'
+        done_resultat = self.output_folder + '/done_resultat'
 
         convert_folder = os.path.join(self.output_folder, '1_convert/')
         blast_folder = os.path.join(self.output_folder, '2_blast/')
         extract_folder = os.path.join(self.output_folder, '3_extract/')
         alignment_folder = os.path.join(self.output_folder, '4_alignment/')
+        resultat_folder = os.path.join(self.output_folder, '5_resultat/')
 
         Methods.make_folder(self.output_folder)
         print('\tAll good!')
@@ -83,9 +86,24 @@ class Keio(object):
         if not os.path.exists(done_alignment):
             print('Alignment...')
             Methods.blast2(align,self.genome, alignment_folder)
-            #Methods.flag_done(done_alignment)
+            Methods.flag_done(done_alignment)
         else:
             print('Skipping alignment. Already done.')
+
+        file = Methods.list_files_in_folder(f"{alignment_folder}all_output/", 'txt')
+        out = {}
+        for f in file:
+            barcode = f.split('/')[-1].split('_')[0]
+            out[barcode] = f
+
+        # resultat
+        if not os.path.exists(done_resultat):
+            print('Resultat...')
+            print(self.position)
+            Methods.resultat(out,self.position,resultat_folder)
+            #Methods.flag_done(done_resultat)
+        else:
+            print('Skipping resultat. Already done.')
 
         print('DONE!')
 
@@ -98,6 +116,9 @@ if __name__ == "__main__":
     parser.add_argument('-g', '--genome', 
                         required=True, 
                         help='Reference genome')
+    parser.add_argument('-p', '--position', 
+                        required=True, 
+                        help='Position des gènes dans un file.csv')    
     parser.add_argument('-i', '--input', 
                         required=True, 
                         help='Folder that contains the fasta files or individual fasta file. Mandatory.') 

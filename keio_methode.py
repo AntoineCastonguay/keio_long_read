@@ -102,7 +102,7 @@ class Methods(object):
 
             out_res = f'{output_folder}all_res/'
             Methods.make_folder(out_res)
-            blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', f'{out_res}{key}_results.txt', '-outfmt', '6', '-max_target_seqs', '1']
+            blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', f'{out_res}{key}_results.txt', '-outfmt', '6', '-max_hsps', '1']
             subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
     
@@ -158,71 +158,40 @@ class Methods(object):
         subprocess.run(makeblastdb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
         
         for key,f in align.items():
+            output_file_txt = {}
             for pos,h in f.items():
                 print(f'\t{key} {pos}')
 
                 out_res = f'{output_folder}all_res/'
                 Methods.make_folder(out_res)
-                blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6', '-max_target_seqs', '1']
+                blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6', '-max_hsps', '1']
                 subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
+                
+                with open(f"{out_res}{key}_{pos}_results.txt", 'r') as file:
+                    reader = csv.reader(file, delimiter="\t")
+                    for row in reader:
+                        query_id = row[0]
+                        pos_1_subject = int(row[8])
+                        pos_2_subject = int(row[9])
+                        
+                        list_var = [pos_1_subject,pos_2_subject]
 
-
-    @staticmethod
-    def alignment(align,ref, output_folder):
-        Methods.make_folder(output_folder)
-
-        # Alignment BWA
-        BWA_index_cmd = ['bwa', 'index', ref]
-        subprocess.run(BWA_index_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-
-        for key,f in align.items():
-            for pos,h in f.items():
-                if pos == 'l':
-                    left = h
-                elif pos == 'r':
-                    right = h
-                else:
-                    print('Error')
-            print(f'\t{key}')
-            BWA_cmd = ['bwa', 'mem', ref, left, right]
-            with open(f'{output_folder}/{key}BWA.sam', 'w') as outfile, open(os.devnull, 'w') as errfile:
-                    subprocess.run(BWA_cmd, stdout=outfile, stderr=errfile)
-
-    @staticmethod
-    def extract_primer_positions(sam_file):
-        print('Extrat position primer...')
-        read_id_positions = {}
-
-        with open(sam_file, 'r') as file:
-            for line in file:
-                # Ignorer les lignes d'en-tête
-                if line.startswith('@'):
-                    continue
-
-                # Séparer la ligne en colonnes
-                columns = line.strip().split('\t')
-                read_id = columns[0]  # ID de la lecture
-                flag = int(columns[1])  # Flag de la lecture
-                position = int(columns[3])  # Position d'alignement
-                qualite = columns[5]  #qualité alignment
-                postion_mate = int(columns[7])
-                length = int(columns[8])
-
-                list_var = [position,postion_mate,length,qualite]
-
-                if read_id not in read_id_positions:
-                    read_id_positions[read_id] = {}
-                read_id_positions[read_id][flag] = list_var
-
-        return read_id_positions
-    
-    @staticmethod
-    def write_result(data,output):
-        print('Creation of result file...')
-
-        Methods.make_folder(output)
-        with open(f'{output}/output.txt', 'w') as f:
-            f.write(f"id\tflag\tfirst_pos\tsecond_pos\tlength\tquality\n")
-            for read_id, sub_dict in data.items():
-                for flag, list_var in sub_dict.items():
-                    f.write(f"{read_id}\t{flag}\t{list_var[0]}\t{list_var[1]}\t{list_var[2]}\t{list_var[3]}\n")
+                        if query_id not in output_file_txt:
+                            output_file_txt[query_id] = {}
+                        output_file_txt[query_id][pos] = list_var
+            
+            with open(f'{output_folder}/{key}output.txt', 'w') as f:
+                f.write(f"query_id\tpos_1_l_subject\tpos_2_l_subject\tpos_1_r_subject\tpos_2_r_subject\tlenth_gene\n")
+                for query_id, sub_dict in output_file_txt.items():
+                    test = []
+                    for pos, list_var in sub_dict.items():
+                        test.append(pos)
+                        test.extend(list_var)
+                    if len(test) == 6:
+                        f.write(f"{query_id}\t{int(test[1])}\t{int(test[2])}\t{int(test[4])}\t{int(test[5])}\t{int(test[4])-int(test[2])}\n")
+                    elif len(test) == 3 and test[0] == 'l':
+                        f.write(f"{query_id}\t{test[1]}\t{test[2]}\tnd\tnd\tnd\n")
+                    elif len(test) == 3 and test[0] == 'r':
+                        f.write(f"{query_id}\tnd\tnd\t{test[1]}\t{test[2]}\tnd\n")
+                    else:
+                        f.write(f"{query_id} error \n")

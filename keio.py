@@ -86,18 +86,6 @@ class Keio(object):
             #Methods.flag_done(done_alignment)
         else:
             print('Skipping alignment. Already done.')
-        
-        # alignment
-        if not os.path.exists(done_alignment):
-            print('Alignment...')
-            Methods.alignment(align,self.genome, alignment_folder)
-            sam_file = Methods.find_sam_files(alignment_folder)
-            for f in sam_file:
-                position = Methods.extract_primer_positions(f)
-                Methods.write_result(position, alignment_folder)
-            #Methods.flag_done(done_alignment)
-        else:
-            print('Skipping alignment. Already done.')
 
         print('DONE!')
 

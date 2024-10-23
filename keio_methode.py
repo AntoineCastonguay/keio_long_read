@@ -6,6 +6,7 @@ from glob import glob
 from Bio import SeqIO
 import csv
 import pandas as pd
+import concurrent.futures
 
 
 class Methods(object):
@@ -190,88 +191,102 @@ class Methods(object):
                     for pos, list_var in sub_dict.items():
                         test.append(pos)
                         test.extend(list_var)
-                    if len(test) == 6:
+                    if len(test) == 6 and test[0] == 'l':
                         f.write(f"{query_id}\t{int(test[1])}\t{int(test[2])}\t{int(test[4])}\t{int(test[5])}\t{int(test[4])-int(test[2])}\n")
+                    elif len(test) == 6 and test[0] == 'r':
+                        f.write(f"{query_id}\t{int(test[4])}\t{int(test[5])}\t{int(test[1])}\t{int(test[2])}\t{int(test[5])-int(test[1])}\n")
                     elif len(test) == 3 and test[0] == 'l':
                         f.write(f"{query_id}\t{test[1]}\t{test[2]}\tnd\tnd\tnd\n")
                     elif len(test) == 3 and test[0] == 'r':
                         f.write(f"{query_id}\tnd\tnd\t{test[1]}\t{test[2]}\tnd\n")
                     else:
                         f.write(f"{query_id} error \n")
+         
     @staticmethod
+    def run_res(key, f, ecoli_positif, output_folder):
+        rows = []  # Utilisation d'une liste temporaire pour stocker les lignes
+        test = pd.read_csv(f, sep='\t')
+        for i in range(len(test)):
+            if test['pos_2_l_subject'][i] != 'nd' and test['pos_1_r_subject'][i] != 'nd':
+                try:
+                    pos_2_l = float(test['pos_2_l_subject'][i])
+                    pos_1_r = float(test['pos_1_r_subject'][i])
+                except ValueError:
+                    continue
+
+                # Vérifier et créer 'ens1'
+                if pos_2_l > pos_1_r:
+                    ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
+                    var = 'l'
+                else:
+                    ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
+                    var = 'r'
+
+                #print(key)
+                #print(test['query_id'][i])
+
+                # Boucle à travers 'ecoli_positif'
+                for j in range(len(ecoli_positif)):
+                    ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
+
+                    # Vérifier la longueur des séquences
+                    if len(ens1) > len(ens2):
+                        continue
+
+                    # Créer une table avec un comptage des correspondances et des erreurs
+                    tab = pd.Series([item in ens1 for item in ens2]).value_counts()
+
+                    if len(tab) == 2:
+                        #print(tab)
+                        #print(ecoli_positif['gene'][j])
+
+                        if var == 'l':
+                            pos_r_l = test['pos_2_l_subject'][i]
+                            pos_g_l = ecoli_positif['second_pos'][j]
+                            pos_r_r = test['pos_1_r_subject'][i]
+                            pos_g_r = ecoli_positif['first_pos'][j]
+                            res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
+                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]
+                        else:
+                            pos_r_l = test['pos_2_l_subject'][i]
+                            pos_g_l = ecoli_positif['first_pos'][j]
+                            pos_r_r = test['pos_1_r_subject'][i]
+                            pos_g_r = ecoli_positif['second_pos'][j]
+                            res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
+                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]
+
+                        # Ajouter une ligne au DataFrame
+                        new_row = {
+                            "query_id": test['query_id'][i],
+                            "match": tab.get(True, 0),
+                            "miss_match": tab.get(False, 0),
+                            "gene": ecoli_positif['gene'][j],
+                            "pos_l_read": pos_r_l,
+                            "pos_l_gene": pos_g_l,
+                            "diff_l": res_l,
+                            "pos_r_read": pos_r_r,
+                            "pos_r_gene": pos_g_r,
+                            "diff_r": res_r
+                        }
+                        rows.append(new_row)
+
+        # Convertir la liste de lignes en DataFrame
+        df = pd.DataFrame(rows)
+
+        # Sauvegarder dans un fichier CSV
+        output_file = os.path.join(output_folder, f"{key}_resultats.csv")
+        df.to_csv(output_file, index=False)
+
     def resultat(out, pos, output_folder):
         Methods.make_folder(output_folder)
         ecoli_positif = pd.read_csv(pos)
 
-        for key, f in out.items():
-            rows = []  # Utilisation d'une liste temporaire pour stocker les lignes
-            test = pd.read_csv(f, sep='\t')
-            for i in range(len(test)):
-                if test['pos_2_l_subject'][i] != 'nd' and test['pos_1_r_subject'][i] != 'nd':
-                    try:
-                        pos_2_l = float(test['pos_2_l_subject'][i])
-                        pos_1_r = float(test['pos_1_r_subject'][i])
-                    except ValueError:
-                        continue
-                    
-                    # Vérifier et créer 'ens1'
-                    if pos_2_l > pos_1_r:
-                        ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
-                        var = 'l'
-                    else:
-                        ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
-                        var = 'r'
+        # Utilisation de ThreadPoolExecutor pour paralléliser la boucle
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            futures = []
+            for key, f in out.items():
+                # Exécution en parallèle de la fonction process_file pour chaque clé
+                futures.append(executor.submit(Methods.run_res, key, f, ecoli_positif, output_folder))
 
-                    print(test['query_id'][i])
-
-                    # Boucle à travers 'ecoli_positif'
-                    for j in range(len(ecoli_positif)):
-                        ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
-                        
-                        # Vérifier la longueur des séquences
-                        if len(ens1) > len(ens2):
-                            continue
-                        
-                        # Créer une table avec un comptage des correspondances et des erreurs
-                        tab = pd.Series([item in ens1 for item in ens2]).value_counts()
-
-                        if len(tab) == 2:
-                            print(tab)
-                            print(ecoli_positif['gene'][j])
-                            
-                            if var == 'l':
-                                pos_r_l = test['pos_2_l_subject'][i]
-                                pos_g_l = ecoli_positif['second_pos'][j]
-                                pos_r_r = test['pos_1_r_subject'][i]
-                                pos_g_r = ecoli_positif['first_pos'][j]
-                                res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
-                                res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]
-                            else:
-                                pos_r_l = test['pos_2_l_subject'][i]
-                                pos_g_l = ecoli_positif['first_pos'][j]
-                                pos_r_r = test['pos_1_r_subject'][i]
-                                pos_g_r = ecoli_positif['second_pos'][j]
-                                res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
-                                res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]
-
-                            # Ajouter une ligne au DataFrame
-                            new_row = {
-                                "query_id": test['query_id'][i],
-                                "match": tab.get(True, 0),
-                                "miss_match": tab.get(False, 0),
-                                "gene": ecoli_positif['gene'][j],
-                                "pos_l_read": pos_r_l,
-                                "pos_l_gene": pos_g_l,
-                                "diff_l": res_l,
-                                "pos_r_read": pos_r_r,
-                                "pos_r_gene": pos_g_r,
-                                "diff_r": res_r
-                            }
-                            rows.append(new_row)
-
-            # Convertir la liste de lignes en DataFrame
-            df = pd.DataFrame(rows)
-
-            # Sauvegarder dans un fichier CSV
-            output_file = f"{output_folder}{key}_resultats.csv"
-            df.to_csv(output_file, index=False)
+            # Attendre que toutes les tâches soient terminées
+            concurrent.futures.wait(futures)

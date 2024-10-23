@@ -100,7 +100,7 @@ class Keio(object):
         if not os.path.exists(done_resultat):
             print('Resultat...')
             Methods.resultat(out,self.position,resultat_folder)
-            Methods.flag_done(done_resultat)
+            #Methods.flag_done(done_resultat)
         else:
             print('Skipping resultat. Already done.')
 

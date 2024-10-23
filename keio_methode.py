@@ -6,6 +6,7 @@ from glob import glob
 from Bio import SeqIO
 import csv
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 
 
 class Methods(object):
@@ -70,25 +71,36 @@ class Methods(object):
             pass
     
     @staticmethod
+    def process_convert_file(f, output_folder):
+        if "_barcode" in f:
+            barcode = f.split('_')[-1].split('.')[0]
+            print(f'\t{barcode}')
+            output_file = os.path.join(output_folder, f"{barcode}.fasta")
+
+            with gzip.open(f, "rt") as fastq_file:
+                with open(output_file, "w") as fasta_file:
+                    for record in SeqIO.parse(fastq_file, "fastq"):
+                        fasta_file.write(f">{record.id}\n")
+                        fasta_file.write(f"{str(record.seq)}\n")
+
+            return {barcode: output_file}
+
+    @staticmethod
     def fastq_to_fasta(fastq_folder, output_folder):
         Methods.make_folder(output_folder)
-
+        
+        files = Methods.list_files_in_folder(fastq_folder, 'fastq.gz')
         my_dict = {}
 
-        files = Methods.list_files_in_folder(fastq_folder, 'fastq.gz')
-        for f in files:
-            if "_barcode" in f:
-                barcode = f.split('_')[-1].split('.')[0]
-                print(f'\t{barcode}')
-                output_file = os.path.join(output_folder, f"{barcode}.fasta")
-                my_dict[barcode] = output_file
+        # Utilisation du ThreadPoolExecutor pour paralléliser le traitement
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            results = list(executor.map(lambda f: Methods.process_convert_file(f, output_folder), files))
 
-                with gzip.open(f, "rt") as fastq_file:
-                    with open(output_file, "w") as fasta_file:
-                        for record in SeqIO.parse(fastq_file, "fastq"):
-                            fasta_file.write(f">{record.id}\n")
-                            fasta_file.write(f"{str(record.seq)}\n")
-        
+        # Fusion des résultats dans my_dict
+        for result in results:
+            if result:
+                my_dict.update(result)
+
         return my_dict
 
     @staticmethod
@@ -152,126 +164,162 @@ class Methods(object):
                     print(f"\tFichier FASTA created : {key}_selected_sequences.fasta")
 
     @staticmethod
+    def run_blast2(key, pos, h, ref_db, output_folder):
+        print(f'\t{key} {pos}')
+
+        out_res = f'{output_folder}all_res/'
+        Methods.make_folder(out_res)
+
+        # Commande BLAST
+        blast_cmd = ['blastn', '-query', h, '-db', ref_db, '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6', '-max_hsps', '1']
+        subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
+
+        # Lecture du fichier de résultats avec pandas
+        output_file_txt = {}
+        df = pd.read_csv(f"{out_res}{key}_{pos}_results.txt", sep="\t", header=None)
+
+        # Vérification si le fichier de résultats est vide
+        if df.empty:
+            return key, output_file_txt
+        
+        # Lecture des colonnes pertinentes (colonne 0 pour query_id, colonnes 8 et 9 pour les positions sujet)
+        for _, row in df.iterrows():
+            query_id = row[0]
+            pos_1_subject = int(row[8])
+            pos_2_subject = int(row[9])
+            list_var = [pos_1_subject, pos_2_subject]
+
+            if query_id not in output_file_txt:
+                output_file_txt[query_id] = {}
+            output_file_txt[query_id][pos] = list_var
+
+        return key, output_file_txt
+
+    @staticmethod
     def blast2(align, ref, output_folder):
         Methods.make_folder(output_folder)
 
+        # Création de la base de données BLAST
         makeblastdb_cmd = ['makeblastdb', '-in', ref, '-dbtype', 'nucl', '-out', f'{output_folder}ref_db']
         subprocess.run(makeblastdb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
+
+        ref_db = f'{output_folder}ref_db'
+        all_results = {}
+
+        # Parallélisation des commandes BLAST avec ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = []
+            for key, f in align.items():
+                for pos, h in f.items():
+                    futures.append(executor.submit(Methods.run_blast2, key, pos, h, ref_db, output_folder))
+
+            # Collecte des résultats une fois les tâches terminées
+            for future in futures:
+                key, output_file_txt = future.result()
+                if key not in all_results:
+                    all_results[key] = {}
+                all_results[key].update(output_file_txt)
+
+        # Sauvegarder les résultats dans un fichier final avec pandas
+        out_output = f'{output_folder}all_output/'
+        Methods.make_folder(out_output)
         
-        for key,f in align.items():
-            output_file_txt = {}
-            for pos,h in f.items():
-                print(f'\t{key} {pos}')
+        for key, output_file_txt in all_results.items():
+            rows = []  # Liste pour stocker les lignes de résultats
+            for query_id, sub_dict in output_file_txt.items():
+                test = []
+                for pos, list_var in sub_dict.items():
+                    test.append(pos)
+                    test.extend(list_var)
 
-                out_res = f'{output_folder}all_res/'
-                Methods.make_folder(out_res)
-                blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6', '-max_hsps', '1']
-                subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
-                
-                with open(f"{out_res}{key}_{pos}_results.txt", 'r') as file:
-                    reader = csv.reader(file, delimiter="\t")
-                    for row in reader:
-                        query_id = row[0]
-                        pos_1_subject = int(row[8])
-                        pos_2_subject = int(row[9])
-                        
-                        list_var = [pos_1_subject,pos_2_subject]
+                if len(test) == 6:
+                    rows.append([query_id, int(test[1]), int(test[2]), int(test[4]), int(test[5]), int(test[4])-int(test[2])])
+                elif len(test) == 3 and test[0] == 'l':
+                    rows.append([query_id, int(test[1]), int(test[2]), 'nd', 'nd', 'nd'])
+                elif len(test) == 3 and test[0] == 'r':
+                    rows.append([query_id, 'nd', 'nd', int(test[1]), int(test[2]), 'nd'])
+                else:
+                    rows.append([query_id, 'error'])
 
-                        if query_id not in output_file_txt:
-                            output_file_txt[query_id] = {}
-                        output_file_txt[query_id][pos] = list_var
-            
-            out_output = f'{output_folder}all_output/'
-            Methods.make_folder(out_output)
-            with open(f'{out_output}{key}_aln_output.txt', 'w') as f:
-                f.write(f"query_id\tpos_1_l_subject\tpos_2_l_subject\tpos_1_r_subject\tpos_2_r_subject\tlenth_gene\n")
-                for query_id, sub_dict in output_file_txt.items():
-                    test = []
-                    for pos, list_var in sub_dict.items():
-                        test.append(pos)
-                        test.extend(list_var)
-                    if len(test) == 6:
-                        f.write(f"{query_id}\t{int(test[1])}\t{int(test[2])}\t{int(test[4])}\t{int(test[5])}\t{int(test[4])-int(test[2])}\n")
-                    elif len(test) == 3 and test[0] == 'l':
-                        f.write(f"{query_id}\t{test[1]}\t{test[2]}\tnd\tnd\tnd\n")
-                    elif len(test) == 3 and test[0] == 'r':
-                        f.write(f"{query_id}\tnd\tnd\t{test[1]}\t{test[2]}\tnd\n")
-                    else:
-                        f.write(f"{query_id} error \n")
+            # Convertir la liste des résultats en DataFrame et écrire dans un fichier
+            df_result = pd.DataFrame(rows, columns=["query_id", "pos_1_l_subject", "pos_2_l_subject", "pos_1_r_subject", "pos_2_r_subject", "length_gene"])
+            df_result.to_csv(f'{out_output}{key}_aln_output.txt', sep='\t', index=False)
+
+    @staticmethod
+    def process_resultat_file(key, f, ecoli_positif, output_folder):
+        rows = []
+        read = pd.read_csv(f, sep='\t')
+
+        for i in range(len(read)):
+            if read['pos_2_l_subject'][i] != 'nd' and read['pos_1_r_subject'][i] != 'nd':
+                try:
+                    pos_2_l = float(read['pos_2_l_subject'][i])
+                    pos_1_r = float(read['pos_1_r_subject'][i])
+                except ValueError:
+                    continue
+
+                # Définir 'ens1'
+                if pos_2_l > pos_1_r:
+                    ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
+                    var = 'l'
+                else:
+                    ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
+                    var = 'r'
+
+                # Boucle à travers 'ecoli_positif'
+                for j in range(len(ecoli_positif)):
+                    ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
+                    if len(ens1) > len(ens2):
+                        continue
+                    
+                    tab = pd.Series([item in ens1 for item in ens2]).value_counts()
+
+                    if len(tab) == 2:
+                        #print(tab)
+                        #print(ecoli_positif['gene'][j])
+                        if var == 'l':
+                            pos_r_l = read['pos_2_l_subject'][i]
+                            pos_g_l = ecoli_positif['second_pos'][j]
+                            pos_r_r = read['pos_1_r_subject'][i]
+                            pos_g_r = ecoli_positif['first_pos'][j]
+                            res_l = float(read['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
+                            res_r = float(read['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]
+                        else:
+                            pos_r_l = read['pos_2_l_subject'][i]
+                            pos_g_l = ecoli_positif['first_pos'][j]
+                            pos_r_r = read['pos_1_r_subject'][i]
+                            pos_g_r = ecoli_positif['second_pos'][j]
+                            res_l = float(read['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
+                            res_r = float(read['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]
+
+                        new_row = {
+                            "query_id": read['query_id'][i],
+                            "match": tab.get(True, 0),
+                            "miss_match": tab.get(False, 0),
+                            "gene": ecoli_positif['gene'][j],
+                            "pos_l_read": pos_r_l,
+                            "pos_l_gene": pos_g_l,
+                            "diff_l": res_l,
+                            "pos_r_read": pos_r_r,
+                            "pos_r_gene": pos_g_r,
+                            "diff_r": res_r
+                        }
+                        rows.append(new_row)
+
+        # Convertir en DataFrame et sauvegarder le résultat
+        df = pd.DataFrame(rows)
+        output_file = f"{output_folder}{key}_resultats.csv"
+        df.to_csv(output_file, index=False)
+
     @staticmethod
     def resultat(out, pos, output_folder):
         Methods.make_folder(output_folder)
         ecoli_positif = pd.read_csv(pos)
 
-        for key, f in out.items():
-            rows = []  # Utilisation d'une liste temporaire pour stocker les lignes
-            test = pd.read_csv(f, sep='\t')
-            for i in range(len(test)):
-                if test['pos_2_l_subject'][i] != 'nd' and test['pos_1_r_subject'][i] != 'nd':
-                    try:
-                        pos_2_l = float(test['pos_2_l_subject'][i])
-                        pos_1_r = float(test['pos_1_r_subject'][i])
-                    except ValueError:
-                        continue
-                    
-                    # Vérifier et créer 'ens1'
-                    if pos_2_l > pos_1_r:
-                        ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
-                        var = 'l'
-                    else:
-                        ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
-                        var = 'r'
+        # Utilisation de ThreadPoolExecutor pour le parallélisme
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(Methods.process_resultat_file, key, f, ecoli_positif, output_folder) for key, f in out.items()]
 
-                    print(test['query_id'][i])
-
-                    # Boucle à travers 'ecoli_positif'
-                    for j in range(len(ecoli_positif)):
-                        ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
-                        
-                        # Vérifier la longueur des séquences
-                        if len(ens1) > len(ens2):
-                            continue
-                        
-                        # Créer une table avec un comptage des correspondances et des erreurs
-                        tab = pd.Series([item in ens1 for item in ens2]).value_counts()
-
-                        if len(tab) == 2:
-                            print(tab)
-                            print(ecoli_positif['gene'][j])
-                            
-                            if var == 'l':
-                                pos_r_l = test['pos_2_l_subject'][i]
-                                pos_g_l = ecoli_positif['second_pos'][j]
-                                pos_r_r = test['pos_1_r_subject'][i]
-                                pos_g_r = ecoli_positif['first_pos'][j]
-                                res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
-                                res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]
-                            else:
-                                pos_r_l = test['pos_2_l_subject'][i]
-                                pos_g_l = ecoli_positif['first_pos'][j]
-                                pos_r_r = test['pos_1_r_subject'][i]
-                                pos_g_r = ecoli_positif['second_pos'][j]
-                                res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
-                                res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]
-
-                            # Ajouter une ligne au DataFrame
-                            new_row = {
-                                "query_id": test['query_id'][i],
-                                "match": tab.get(True, 0),
-                                "miss_match": tab.get(False, 0),
-                                "gene": ecoli_positif['gene'][j],
-                                "pos_l_read": pos_r_l,
-                                "pos_l_gene": pos_g_l,
-                                "diff_l": res_l,
-                                "pos_r_read": pos_r_r,
-                                "pos_r_gene": pos_g_r,
-                                "diff_r": res_r
-                            }
-                            rows.append(new_row)
-
-            # Convertir la liste de lignes en DataFrame
-            df = pd.DataFrame(rows)
-
-            # Sauvegarder dans un fichier CSV
-            output_file = f"{output_folder}{key}_resultats.csv"
-            df.to_csv(output_file, index=False)
+        # Attendre que toutes les tâches soient terminées
+        for future in futures:
+            future.result()

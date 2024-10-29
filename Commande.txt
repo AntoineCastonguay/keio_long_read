@@ -4,4 +4,4 @@ python3 keio.py -r data/KEIO_KAN.fa -i data/read/ -o res/out1/
 python3 keio.py -r data/KEIO_KAN.fa -g data/BW25113.fa -i data/read/ -o res/out1/
 python3 keio.py -r data/KEIO_KAN.fa -g data/BW25113.fa -i data/read/ -p data/ecoli_bw25113_gene.csv -o res/out1/
 
-python3 keio.py -r data/KEIO_KAN.fa -g data/BW25113.fa -i ../pe_keio/Nanopore/read/ -p data/ecoli_bw25113_gene.csv -o res/out1/
+python3 keio.py -r data/KEIO_KAN.fa -g data/BW25113.fa -i ../pe_keio/Nanopore/ -p data/ecoli_bw25113_gene.csv -o res/out1/

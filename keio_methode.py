@@ -207,59 +207,112 @@ class Methods(object):
         rows = []  # Utilisation d'une liste temporaire pour stocker les lignes
         test = pd.read_csv(f, sep='\t')
         for i in range(len(test)):
+            w = 0
             if test['pos_2_l_subject'][i] != 'nd' and test['pos_1_r_subject'][i] != 'nd':
                 try:
                     pos_2_l = float(test['pos_2_l_subject'][i])
                     pos_1_r = float(test['pos_1_r_subject'][i])
+                    w = 0
                 except ValueError:
                     continue
+            elif test['pos_2_l_subject'][i] == 'nd':
+                try:
+                    pos_1_r = float(test['pos_1_r_subject'][i])
+                    if float(test['pos_1_r_subject'][i]) > float(test['pos_2_r_subject'][i]):
+                        pos_2_l = float(test['pos_1_r_subject'][i]) + 40.
+                    else:
+                        pos_2_l = float(test['pos_1_r_subject'][i]) - 40
+                    w = 1
+                except ValueError:
+                    continue
+            elif test['pos_1_r_subject'][i] == 'nd':
+                try:
+                    pos_2_l = float(test['pos_2_l_subject'][i])
+                    if float(test['pos_2_l_subject'][i]) > float(test['pos_1_l_subject'][i]):
+                        pos_1_r = float(test['pos_2_l_subject'][i]) + 40
+                    else:
+                        pos_1_r = float(test['pos_2_l_subject'][i]) - 40
+                    w = 2
+                except ValueError:
+                    continue
+            else:
+                continue
 
-                # Vérifier et créer 'ens1'
-                if pos_2_l > pos_1_r:
-                    ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
-                    var = 'l'
-                else:
-                    ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
-                    var = 'r'
+            #print(key)
+            #print(test['query_id'][i])            
 
-                #print(key)
-                #print(test['query_id'][i])
+            # Vérifier et créer 'ens1'
+            if pos_2_l > pos_1_r:
+                ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
+                var = 'l'
+            else:
+                ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
+                var = 'r'
 
-                # Boucle à travers 'ecoli_positif'
-                for j in range(len(ecoli_positif)):
-                    ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
+            # Boucle à travers 'ecoli_positif'
+            for j in range(len(ecoli_positif)):
+                ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
 
-                    # Vérifier la longueur des séquences
-                    if len(ens1) > len(ens2):
-                        continue
+                # Vérifier la longueur des séquences
+                if len(ens1) > len(ens2):
+                    continue
 
-                    # Créer une table avec un comptage des correspondances et des erreurs
-                    tab = pd.Series([item in ens1 for item in ens2]).value_counts()
+                # Créer une table avec un comptage des correspondances et des erreurs
+                tab = pd.Series([item in ens1 for item in ens2]).value_counts()
 
-                    if len(tab) == 2:
-                        #print(tab)
-                        #print(ecoli_positif['gene'][j])
-
-                        if var == 'l':
+                if len(tab) == 2:
+                    #print(tab)
+                    #print(ecoli_positif['gene'][j])
+                    if var == 'l':
+                        if w == 1:
+                            pos_r_l, res_l = 0, 0
+                        else: 
                             pos_r_l = test['pos_2_l_subject'][i]
-                            pos_g_l = ecoli_positif['second_pos'][j]
-                            pos_r_r = test['pos_1_r_subject'][i]
-                            pos_g_r = ecoli_positif['first_pos'][j]
                             res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
-                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]
-                        else:
-                            pos_r_l = test['pos_2_l_subject'][i]
-                            pos_g_l = ecoli_positif['first_pos'][j]
-                            pos_r_r = test['pos_1_r_subject'][i]
-                            pos_g_r = ecoli_positif['second_pos'][j]
-                            res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
-                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]
 
-                        # Ajouter une ligne au DataFrame
+                        if w == 2:
+                            pos_r_r, res_r = 0, 0
+                        else:
+                            pos_r_r = test['pos_1_r_subject'][i]
+                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]                        
+
+                        pos_g_l = ecoli_positif['second_pos'][j]
+                        pos_g_r = ecoli_positif['first_pos'][j]
+                    else:
+                        if w == 1:
+                            pos_r_l, res_l = 0, 0
+                        else: 
+                            pos_r_l = test['pos_2_l_subject'][i]
+                            res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
+
+                        if w == 2:
+                            pos_r_r, res_r = 0, 0
+                        else:
+                            pos_r_r = test['pos_1_r_subject'][i]
+                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]                        
+
+                        pos_g_l = ecoli_positif['first_pos'][j]
+                        pos_g_r = ecoli_positif['second_pos'][j]
+
+                    # Ajouter une ligne au DataFrame
+                    if var == 'l':
                         new_row = {
                             "query_id": test['query_id'][i],
                             "match": tab.get(True, 0),
-                            "miss_match": tab.get(False, 0),
+                            "offset": tab.get(False, 0),
+                            "gene": ecoli_positif['gene'][j],
+                            "pos_l_read": pos_r_r,
+                            "pos_l_gene": pos_g_r,
+                            "diff_l": res_r,
+                            "pos_r_read": pos_r_l,
+                            "pos_r_gene": pos_g_l,
+                            "diff_r": res_l
+                        }    
+                    else:
+                        new_row = {
+                            "query_id": test['query_id'][i],
+                            "match": tab.get(True, 0),
+                            "offset": tab.get(False, 0),
                             "gene": ecoli_positif['gene'][j],
                             "pos_l_read": pos_r_l,
                             "pos_l_gene": pos_g_l,
@@ -267,8 +320,9 @@ class Methods(object):
                             "pos_r_read": pos_r_r,
                             "pos_r_gene": pos_g_r,
                             "diff_r": res_r
-                        }
-                        rows.append(new_row)
+                        }                                            
+
+                    rows.append(new_row)
 
         # Convertir la liste de lignes en DataFrame
         df = pd.DataFrame(rows)

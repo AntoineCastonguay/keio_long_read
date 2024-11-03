@@ -29,6 +29,7 @@ class Keio(object):
         done_extract = self.output_folder + '/done_extract'
         done_alignment = self.output_folder + '/done_alignment'
         done_resultat = self.output_folder + '/done_resultat'
+        done_final = self.output_folder + '/done_final'
 
         convert_folder = os.path.join(self.output_folder, '1_convert/')
         blast_folder = os.path.join(self.output_folder, '2_blast/')
@@ -100,9 +101,20 @@ class Keio(object):
         if not os.path.exists(done_resultat):
             print('Resultat...')
             Methods.resultat(out,self.position,resultat_folder)
-            #Methods.flag_done(done_resultat)
+            Methods.flag_done(done_resultat)
         else:
             print('Skipping resultat. Already done.')
+
+        file = Methods.list_files_in_folder(f"{resultat_folder}",'csv')
+        final = {}
+        for f in file:
+            barcode = f.split('/')[-1].split('_')[0]
+            final[barcode] = f        
+        
+        if not os.path.exists(done_final):
+            print('Output...')
+            Methods.final(final,self.position,self.output_folder)
+
 
         print('DONE!')
 

@@ -344,3 +344,35 @@ class Methods(object):
 
             # Attendre que toutes les tâches soient terminées
             concurrent.futures.wait(futures)
+
+    def final(file,pos_ref, output): 
+        # Créer une liste pour stocker les lignes du fichier final
+        rows = []
+        
+        for key, f in file.items():
+            # Lire le fichier CSV
+            df = pd.read_csv(f)
+            
+            # Compter les occurrences et calculer les pourcentages pour la colonne 'gene'
+            compte = df["gene"].value_counts()
+            pourcentage = (compte / compte.sum()) * 100
+            
+            # Créer un dictionnaire avec 'key' et les colonnes gene_1, gene_1_pourcentage, ...
+            row = {'key': key}
+            
+            # Ajouter les gènes et leurs pourcentages dans les colonnes
+            for i, (gene, pct) in enumerate(pourcentage.items(), start=1):
+                if i > 10:  # Limiter à un maximum de 10 gènes
+                    break
+                row[f'gene_{i}'] = gene
+                row[f'gene_{i}_pourcentage'] = pct
+            
+            # Ajouter la ligne au tableau final
+            rows.append(row)
+        
+        # Convertir les lignes en DataFrame
+        result_df = pd.DataFrame(rows)
+        
+        # Écrire le DataFrame dans le fichier CSV de sortie
+        output_file = os.path.join(output, f"resultats_all.csv")
+        result_df.to_csv(output_file, index=False, sep=';')

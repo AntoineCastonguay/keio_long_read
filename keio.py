@@ -40,81 +40,103 @@ class Keio(object):
         Methods.make_folder(self.output_folder)
         print('\tAll good!')
 
-        # convert
-        if not os.path.exists(done_convert):
-            print('Convert fastq to fasta...')
-            read = Methods.fastq_to_fasta(self.input, convert_folder)
-            Methods.flag_done(done_convert)
-        else:
-            print('Skipping convert. Already done.')
-            file = Methods.list_files_in_folder(convert_folder, 'fasta')
-            read = {}
-            for f in file:
-                barcode = f.split('/')[-1].split('.')[0]
-                read[barcode] = f
+        # Aller chercher les fichier fastq ou fasta du input
+        extention_fasta = ['fasta', 'fasta.gz','fa', 'fa.gz']
+        extension_fastq = ['fq', 'fq.gz','fastq', 'fastq.gz']
+        files_fasta = Methods.list_files_in_folder(self.input, extention_fasta)
+        files_fastq = Methods.list_files_in_folder(self.input, extension_fastq)
+        sequence = {}
 
-        # blast
+        # S'il y a des fichiers fasta ajout au dictionnaire sequence
+        if files_fasta != []:
+            for f in files_fasta:
+                barcode = f.split('/')[-1].split('.')[0].split('_')[-1]
+                sequence[barcode] = f
+
+        # S'il y a des fichier fastq convertir en fasta
+        if files_fastq != []:
+            # convert
+            if not os.path.exists(done_convert):
+                print('Convert fastq to fasta...')
+                Methods.fastq_to_fasta(files_fastq, convert_folder)
+                Methods.flag_done(done_convert)
+            else:
+                print('Skipping convert. Already done.')
+        else:
+            Methods.make_folder(convert_folder)
+        
+        # Ajout les fichier fastq convertie dans le dictionnaire sequence
+        files_convert = Methods.list_files_in_folder(convert_folder, 'fasta')
+        for f in files_convert:
+            barcode = f.split('/')[-1].split('.')[0]
+            sequence[barcode] = f
+
+        # blast kanamicine
         if not os.path.exists(done_blast):
             print('Blast...')
-            Methods.blast(read, self.ref, blast_folder)
+            Methods.blast(sequence, self.ref, blast_folder)
             Methods.flag_done(done_blast)
         else:
             print('Skipping blast. Already done.')
 
-        file = Methods.list_files_in_folder(blast_folder + 'all_res/', 'txt')
-        res = {}
-        for f in file:
+        # Ajout les fichier des résultat du blast de la kanamicine sur les reads dans le dictionnaire blast_kan
+        file_blast_kan = Methods.list_files_in_folder(blast_folder + 'all_res/', 'txt')
+        blast_kan = {}
+        for f in file_blast_kan:
             barcode = f.split('/')[-1].split('_')[0]
-            res[barcode] = f
+            blast_kan[barcode] = f
 
         # extract kan
         if not os.path.exists(done_extract):
             print('Extract...')
-            Methods.extract(res, read, extract_folder)
+            Methods.extract(blast_kan, sequence, extract_folder)
             Methods.flag_done(done_extract)
         else:
             print('Skipping extract. Already done.')
 
-        file = Methods.list_files_in_folder(extract_folder, 'fasta')
-        align = {}
-        for f in file:
+        # Ajout les fichier left et right apres l'extract de la kanamicine dans le dictionnaire extract_kan
+        file_extract_kan = Methods.list_files_in_folder(extract_folder, 'fasta')
+        extract_kan = {}
+        for f in file_extract_kan:
             barcode,pos = f.split('/')[-1].split('_')[0:2]
-            if barcode not in align:
-                align[barcode] = {}
-            align[barcode][pos] = f
+            if barcode not in extract_kan:
+                extract_kan[barcode] = {}
+            extract_kan[barcode][pos] = f
         
         # alignment
         if not os.path.exists(done_alignment):
             print('Alignment...')
-            Methods.blast2(align,self.genome, alignment_folder)
+            Methods.blast2(extract_kan,self.genome, alignment_folder)
             Methods.flag_done(done_alignment)
         else:
             print('Skipping alignment. Already done.')
 
-        file = Methods.list_files_in_folder(f"{alignment_folder}all_output/", 'txt')
-        out = {}
-        for f in file:
+        # Ajout les fichier du resultat de l'alignement des portion left et right sur le génome dnas le dictionnaire align
+        file_align = Methods.list_files_in_folder(f"{alignment_folder}all_output/", 'txt')
+        align = {}
+        for f in file_align:
             barcode = f.split('/')[-1].split('_')[0]
-            out[barcode] = f
+            align[barcode] = f
 
         # resultat
         if not os.path.exists(done_resultat):
             print('Resultat...')
-            Methods.resultat(out,self.position,resultat_folder)
+            Methods.resultat(align,self.position,resultat_folder)
             Methods.flag_done(done_resultat)
         else:
             print('Skipping resultat. Already done.')
 
-        file = Methods.list_files_in_folder(f"{resultat_folder}",'csv')
-        final = {}
-        for f in file:
+        # Ajout les résultats de l'analyse pour faire une synthese sur un document
+        file_res = Methods.list_files_in_folder(f"{resultat_folder}",'csv')
+        res = {}
+        for f in file_res:
             barcode = f.split('/')[-1].split('_')[0]
-            final[barcode] = f        
+            res[barcode] = f        
         
+        # synthese
         if not os.path.exists(done_final):
             print('Output...')
-            Methods.final(final,self.position,self.output_folder)
-
+            Methods.final(res,self.position,self.output_folder)
 
         print('DONE!')
 
@@ -132,10 +154,10 @@ if __name__ == "__main__":
                         help='Position des gènes dans un file.csv')    
     parser.add_argument('-i', '--input', 
                         required=True, 
-                        help='Folder that contains the fasta files or individual fasta file. Mandatory.') 
+                        help='Folder that contains the fasta files or individual fasta file.') 
     parser.add_argument('-o', '--output', 
                         required=True, 
-                        help='Folder to hold the extract files. Mandatory.')
+                        help='Folder to hold the extract files.')
     parser.add_argument('-v', '--version', action='version', version=f'{os.path.basename(__file__)}: version {__version__}')
     
     arguments = parser.parse_args()

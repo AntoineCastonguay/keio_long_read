@@ -109,7 +109,7 @@ class Methods(object):
             with open(f, "r") as file:
                 reader = csv.reader(file, delimiter="\t")
                 for row in reader:
-                    if float(row[2]) > float(90) and int(row[3]) > 500:
+                    if float(row[2]) > float(90) and int(row[3]) > 300:
                         if key not in dict_match:
                             dict_match[key] = {}
 
@@ -156,7 +156,7 @@ class Methods(object):
         subprocess.run(makeblastdb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
         
         for key,f in align.items():
-            output_file_txt = {}
+            align_dict = {}
             for pos,h in f.items():
                 print(f'\t{key} {pos}')
 
@@ -174,60 +174,60 @@ class Methods(object):
                         
                         list_var = [pos_1_subject,pos_2_subject]
 
-                        if query_id not in output_file_txt:
-                            output_file_txt[query_id] = {}
-                        output_file_txt[query_id][pos] = list_var
+                        if query_id not in align_dict:
+                            align_dict[query_id] = {}
+                        align_dict[query_id][pos] = list_var
             
             out_output = f'{output_folder}all_output/'
             Methods.make_folder(out_output)
             with open(f'{out_output}{key}_aln_output.txt', 'w') as f:
                 f.write(f"query_id\tpos_1_l_subject\tpos_2_l_subject\tpos_1_r_subject\tpos_2_r_subject\tlenth_gene\n")
-                for query_id, sub_dict in output_file_txt.items():
-                    test = []
+                for query_id, sub_dict in align_dict.items():
+                    row_align = []
                     for pos, list_var in sub_dict.items():
-                        test.append(pos)
-                        test.extend(list_var)
-                    if len(test) == 6 and test[0] == 'l':
-                        f.write(f"{query_id}\t{int(test[1])}\t{int(test[2])}\t{int(test[4])}\t{int(test[5])}\t{int(test[4])-int(test[2])}\n")
-                    elif len(test) == 6 and test[0] == 'r':
-                        f.write(f"{query_id}\t{int(test[4])}\t{int(test[5])}\t{int(test[1])}\t{int(test[2])}\t{int(test[5])-int(test[1])}\n")
-                    elif len(test) == 3 and test[0] == 'l':
-                        f.write(f"{query_id}\t{test[1]}\t{test[2]}\tnd\tnd\tnd\n")
-                    elif len(test) == 3 and test[0] == 'r':
-                        f.write(f"{query_id}\tnd\tnd\t{test[1]}\t{test[2]}\tnd\n")
+                        row_align.append(pos)
+                        row_align.extend(list_var)
+                    if len(row_align) == 6 and row_align[0] == 'l':
+                        f.write(f"{query_id}\t{int(row_align[1])}\t{int(row_align[2])}\t{int(row_align[4])}\t{int(row_align[5])}\t{int(row_align[4])-int(row_align[2])}\n")
+                    elif len(row_align) == 6 and row_align[0] == 'r':
+                        f.write(f"{query_id}\t{int(row_align[4])}\t{int(row_align[5])}\t{int(row_align[1])}\t{int(row_align[2])}\t{int(row_align[5])-int(row_align[1])}\n")
+                    elif len(row_align) == 3 and row_align[0] == 'l':
+                        f.write(f"{query_id}\t{row_align[1]}\t{row_align[2]}\tnd\tnd\tnd\n")
+                    elif len(row_align) == 3 and row_align[0] == 'r':
+                        f.write(f"{query_id}\tnd\tnd\t{row_align[1]}\t{row_align[2]}\tnd\n")
                     else:
                         f.write(f"{query_id} error \n")
          
     @staticmethod
-    def run_res(key, f, ecoli_positif, output_folder):
+    def run_res(key, align, ecoli_positif, output_folder):
         rows = []  # Utilisation d'une liste temporaire pour stocker les lignes
-        test = pd.read_csv(f, sep='\t')
-        for i in range(len(test)):
+        df_align = pd.read_csv(align, sep='\t')
+        for i in range(len(df_align)):
             w = 0
-            if test['pos_2_l_subject'][i] != 'nd' and test['pos_1_r_subject'][i] != 'nd':
+            if df_align['pos_2_l_subject'][i] != 'nd' and df_align['pos_1_r_subject'][i] != 'nd':
                 try:
-                    pos_2_l = float(test['pos_2_l_subject'][i])
-                    pos_1_r = float(test['pos_1_r_subject'][i])
+                    pos_2_l = float(df_align['pos_2_l_subject'][i])
+                    pos_1_r = float(df_align['pos_1_r_subject'][i])
                     w = 0
                 except ValueError:
                     continue
-            elif test['pos_2_l_subject'][i] == 'nd':
+            elif df_align['pos_2_l_subject'][i] == 'nd':
                 try:
-                    pos_1_r = float(test['pos_1_r_subject'][i])
-                    if float(test['pos_1_r_subject'][i]) > float(test['pos_2_r_subject'][i]):
-                        pos_2_l = float(test['pos_1_r_subject'][i]) + 40.
+                    pos_1_r = float(df_align['pos_1_r_subject'][i])
+                    if float(df_align['pos_1_r_subject'][i]) > float(df_align['pos_2_r_subject'][i]):
+                        pos_2_l = float(df_align['pos_1_r_subject'][i]) + 40.
                     else:
-                        pos_2_l = float(test['pos_1_r_subject'][i]) - 40
+                        pos_2_l = float(df_align['pos_1_r_subject'][i]) - 40
                     w = 1
                 except ValueError:
                     continue
-            elif test['pos_1_r_subject'][i] == 'nd':
+            elif df_align['pos_1_r_subject'][i] == 'nd':
                 try:
-                    pos_2_l = float(test['pos_2_l_subject'][i])
-                    if float(test['pos_2_l_subject'][i]) > float(test['pos_1_l_subject'][i]):
-                        pos_1_r = float(test['pos_2_l_subject'][i]) + 40
+                    pos_2_l = float(df_align['pos_2_l_subject'][i])
+                    if float(df_align['pos_2_l_subject'][i]) > float(df_align['pos_1_l_subject'][i]):
+                        pos_1_r = float(df_align['pos_2_l_subject'][i]) + 40
                     else:
-                        pos_1_r = float(test['pos_2_l_subject'][i]) - 40
+                        pos_1_r = float(df_align['pos_2_l_subject'][i]) - 40
                     w = 2
                 except ValueError:
                     continue
@@ -235,7 +235,7 @@ class Methods(object):
                 continue
 
             #print(key)
-            #print(test['query_id'][i])            
+            #print(df_align['query_id'][i])            
 
             # Vérifier et créer 'ens1'
             if pos_2_l > pos_1_r:
@@ -259,18 +259,19 @@ class Methods(object):
                 if len(tab) == 2:
                     #print(tab)
                     #print(ecoli_positif['gene'][j])
+                    # #if tab[True] > abs(int(df_align['lenth_gene'][i]))*0.8:
                     if var == 'l':
                         if w == 1:
                             pos_r_l, res_l = 0, 0
                         else: 
-                            pos_r_l = test['pos_2_l_subject'][i]
-                            res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
+                            pos_r_l = df_align['pos_2_l_subject'][i]
+                            res_l = float(df_align['pos_2_l_subject'][i]) - ecoli_positif['second_pos'][j]
 
                         if w == 2:
                             pos_r_r, res_r = 0, 0
                         else:
-                            pos_r_r = test['pos_1_r_subject'][i]
-                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]                        
+                            pos_r_r = df_align['pos_1_r_subject'][i]
+                            res_r = float(df_align['pos_1_r_subject'][i]) - ecoli_positif['first_pos'][j]                        
 
                         pos_g_l = ecoli_positif['second_pos'][j]
                         pos_g_r = ecoli_positif['first_pos'][j]
@@ -278,14 +279,14 @@ class Methods(object):
                         if w == 1:
                             pos_r_l, res_l = 0, 0
                         else: 
-                            pos_r_l = test['pos_2_l_subject'][i]
-                            res_l = float(test['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
+                            pos_r_l = df_align['pos_2_l_subject'][i]
+                            res_l = float(df_align['pos_2_l_subject'][i]) - ecoli_positif['first_pos'][j]
 
                         if w == 2:
                             pos_r_r, res_r = 0, 0
                         else:
-                            pos_r_r = test['pos_1_r_subject'][i]
-                            res_r = float(test['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]                        
+                            pos_r_r = df_align['pos_1_r_subject'][i]
+                            res_r = float(df_align['pos_1_r_subject'][i]) - ecoli_positif['second_pos'][j]                        
 
                         pos_g_l = ecoli_positif['first_pos'][j]
                         pos_g_r = ecoli_positif['second_pos'][j]
@@ -293,7 +294,7 @@ class Methods(object):
                     # Ajouter une ligne au DataFrame
                     if var == 'l':
                         new_row = {
-                            "query_id": test['query_id'][i],
+                            "query_id": df_align['query_id'][i],
                             "match": tab.get(True, 0),
                             "offset": tab.get(False, 0),
                             "gene": ecoli_positif['gene'][j],
@@ -306,7 +307,7 @@ class Methods(object):
                         }    
                     else:
                         new_row = {
-                            "query_id": test['query_id'][i],
+                            "query_id": df_align['query_id'][i],
                             "match": tab.get(True, 0),
                             "offset": tab.get(False, 0),
                             "gene": ecoli_positif['gene'][j],
@@ -327,14 +328,14 @@ class Methods(object):
         output_file = os.path.join(output_folder, f"{key}_resultats.csv")
         df.to_csv(output_file, index=False)
 
-    def resultat(out, pos, output_folder):
+    def resultat(align, position, output_folder):
         Methods.make_folder(output_folder)
-        ecoli_positif = pd.read_csv(pos)
+        ecoli_positif = pd.read_csv(position)
 
         # Utilisation de ThreadPoolExecutor pour paralléliser la boucle
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
             futures = []
-            for key, f in out.items():
+            for key, f in align.items():
                 print(f'\t{key}')
                 # Exécution en parallèle de la fonction process_file pour chaque clé
                 futures.append(executor.submit(Methods.run_res, key, f, ecoli_positif, output_folder))

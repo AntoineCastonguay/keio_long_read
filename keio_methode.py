@@ -259,7 +259,7 @@ class Methods(object):
                 if len(tab) == 2:
                     #print(tab)
                     #print(ecoli_positif['gene'][j])
-                    # #if tab[True] > abs(int(df_align['lenth_gene'][i]))*0.8:
+                    #if tab[True] > abs(int(df_align['lenth_gene'][i]))*0.8:
                     if var == 'l':
                         if w == 1:
                             pos_r_l, res_l = 0, 0

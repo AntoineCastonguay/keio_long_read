@@ -1,4 +1,7 @@
 Commande utile
+conda install biopython
+conda install pandas
+conda install -c bioconda blast
 
 python3 keio.py -r data/KEIO_KAN.fa -i data/read/ -o res/out1/
 python3 keio.py -r data/KEIO_KAN.fa -g data/BW25113.fa -i data/read/ -o res/out1/

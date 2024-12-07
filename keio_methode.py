@@ -239,27 +239,20 @@ class Methods(object):
 
             # Vérifier et créer 'ens1'
             if pos_2_l > pos_1_r:
-                ens1 = range(int(pos_1_r), int(pos_2_l) + 1)
+                ens1 = range(int(pos_1_r), int(pos_2_l))
                 var = 'l'
             else:
-                ens1 = range(int(pos_2_l), int(pos_1_r) + 1)
+                ens1 = range(int(pos_2_l), int(pos_1_r))
                 var = 'r'
 
             # Boucle à travers 'ecoli_positif'
             for j in range(len(ecoli_positif)):
                 ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
 
-                # Vérifier la longueur des séquences
-                if len(ens1) > len(ens2):
-                    continue
-
                 # Créer une table avec un comptage des correspondances et des erreurs
-                tab = pd.Series([item in ens1 for item in ens2]).value_counts()
+                res = list(set(ens1) & set(ens2))
 
-                if len(tab) == 2:
-                    #print(tab)
-                    #print(ecoli_positif['gene'][j])
-                    #if tab[True] > abs(int(df_align['lenth_gene'][i]))*0.8:
+                if len(res) > 0:
                     if var == 'l':
                         if w == 1:
                             pos_r_l, res_l = 0, 0
@@ -295,27 +288,27 @@ class Methods(object):
                     if var == 'l':
                         new_row = {
                             "query_id": df_align['query_id'][i],
-                            "match": tab.get(True, 0),
-                            "offset": tab.get(False, 0),
-                            "gene": ecoli_positif['gene'][j],
+                            "match": len(res),
+                            "similarity": ecoli_positif['similarity'][j],
+                            "gene": ecoli_positif['new_gene'][j],
                             "pos_l_read": pos_r_r,
-                            "pos_l_gene": pos_g_r,
+                            "pos_l_insert": pos_g_r,
                             "diff_l": res_r,
                             "pos_r_read": pos_r_l,
-                            "pos_r_gene": pos_g_l,
+                            "pos_r_insert": pos_g_l,
                             "diff_r": res_l
                         }    
                     else:
                         new_row = {
                             "query_id": df_align['query_id'][i],
-                            "match": tab.get(True, 0),
-                            "offset": tab.get(False, 0),
-                            "gene": ecoli_positif['gene'][j],
+                            "match": len(res),
+                            "similarity": ecoli_positif['similarity'][j],
+                            "gene": ecoli_positif['new_gene'][j],
                             "pos_l_read": pos_r_l,
-                            "pos_l_gene": pos_g_l,
+                            "pos_l_insert": pos_g_l,
                             "diff_l": res_l,
                             "pos_r_read": pos_r_r,
-                            "pos_r_gene": pos_g_r,
+                            "pos_r_insert": pos_g_r,
                             "diff_r": res_r
                         }                                            
 
@@ -349,21 +342,30 @@ class Methods(object):
         
         for key, f in file.items():
             # Lire le fichier CSV
-            df = pd.read_csv(f)
+            try:
+                df = pd.read_csv(f)
+            except pd.errors.EmptyDataError:
+                print(f"Le fichier CSV du {key} ne contient aucune donnée lisible .")
+                continue
+            except FileNotFoundError:
+                print("Le fichier n'existe pas.")
+                continue
             
             # Compter les occurrences et calculer les pourcentages pour la colonne 'gene'
             compte = df["gene"].value_counts()
             pourcentage = (compte / compte.sum()) * 100
-            
-            # Créer un dictionnaire avec 'key' et les colonnes gene_1, gene_1_pourcentage, ...
+
+            # Créer un dictionnaire avec 'key' et la colonne Total
             row = {'key': key}
-            
+            row['Total'] = compte.sum()
+
             # Ajouter les gènes et leurs pourcentages dans les colonnes
-            for i, (gene, pct) in enumerate(pourcentage.items(), start=1):
+            for i, (gene, count) in enumerate(compte.items(), start=1):
                 if i > 10:  # Limiter à un maximum de 10 gènes
                     break
                 row[f'gene_{i}'] = gene
-                row[f'gene_{i}_pourcentage'] = pct
+                row[f'gene_{i}_nb'] = count
+                row[f'gene_{i}_pourcentage'] = pourcentage[gene]
             
             # Ajouter la ligne au tableau final
             rows.append(row)

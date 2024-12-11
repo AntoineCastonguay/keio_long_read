@@ -307,8 +307,7 @@ class Methods(object):
                         new_row = {
                             "query_id": df_align['query_id'][i],
                             "match": len(res),
-                            "similarity": round(ecoli_positif['similarity'][j],3),
-                            "gene": ecoli_positif['new_gene'][j],
+                            "gene": ecoli_positif['old_gene'][j],
                             "pos_l_read": pos_r_r,
                             "pos_l_insert": pos_g_r,
                             "diff_l": res_r,
@@ -320,8 +319,7 @@ class Methods(object):
                         new_row = {
                             "query_id": df_align['query_id'][i],
                             "match": len(res),
-                            "similarity": round(ecoli_positif['similarity'][j],3),
-                            "gene": ecoli_positif['new_gene'][j],
+                            "gene": ecoli_positif['old_gene'][j],
                             "pos_l_read": pos_r_l,
                             "pos_l_insert": pos_g_l,
                             "diff_l": res_l,
@@ -383,9 +381,9 @@ class Methods(object):
                 row[f'gene_{i}'] = gene
                 row[f'gene_{i}_nb'] = count
                 row[f'gene_{i}_pourcentage'] = pourcentage[gene]
-                
-                row2 = {'methode': 'assembly', 'key': key ,'gene': gene}
-                rows2.append(row2)
+                if count > 3:
+                    row2 = {'methode': 'assembly', 'key': key ,'gene': gene}
+                    rows2.append(row2)
 
             # Convertir la liste de lignes en DataFrame
             result_df2 = pd.DataFrame(rows2)

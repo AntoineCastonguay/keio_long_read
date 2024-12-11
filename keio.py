@@ -21,7 +21,7 @@ class Keio(object):
 
     def run(self):
         print('Checking a few things...')
-        Methods.check_input(self.input)
+        #Methods.check_input(self.input)
         Methods.check_ref(self.ref)
 
         done_convert = self.output_folder + '/done_convert'
@@ -50,7 +50,7 @@ class Keio(object):
         # S'il y a des fichiers fasta ajout au dictionnaire sequence
         if files_fasta != []:
             for f in files_fasta:
-                barcode = f.split('/')[-1].split('.')[0].split('_')[-1]
+                barcode = f.split('/')[-1].split('.')[0].split('_')[0]
                 sequence[barcode] = f
 
         # S'il y a des fichier fastq convertir en fasta

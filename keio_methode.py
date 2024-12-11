@@ -7,6 +7,7 @@ from Bio import SeqIO
 import csv
 import pandas as pd
 import concurrent.futures
+from concurrent import futures
 
 
 class Methods(object):
@@ -92,9 +93,13 @@ class Methods(object):
             subprocess.run(makeblastdb_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
 
             out_res = f'{output_folder}all_res/'
+            result_file = f'{out_res}{key}_results.txt'
             Methods.make_folder(out_res)
-            blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', f'{out_res}{key}_results.txt', '-outfmt', '6', '-max_hsps', '1']
+            blast_cmd = ['blastn', '-query', ref, '-db', f'{out}{key}_reads_db', '-out', result_file, '-outfmt', '6', '-max_hsps', '1']
             subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
+
+            if os.path.exists(result_file) and os.path.getsize(result_file) == 0:
+                os.remove(result_file)
 
     
     @staticmethod
@@ -109,7 +114,7 @@ class Methods(object):
             with open(f, "r") as file:
                 reader = csv.reader(file, delimiter="\t")
                 for row in reader:
-                    if float(row[2]) > float(90) and int(row[3]) > 300:
+                    if float(row[2]) > float(90) and int(row[3]) > 100:
                         if key not in dict_match:
                             dict_match[key] = {}
 
@@ -117,6 +122,9 @@ class Methods(object):
                             dict_match[key][row[1]] = [row[3], row[8], row[9]]
                         elif row[3] > dict_match[key][row[1]][0]:
                             dict_match[key][row[1]] = [row[3], row[8], row[9]]
+
+            if len(dict_match) == 0:
+                continue
         
             output_file_l = os.path.join(output_folder, f"{key}_l_select_seq.fasta")
             output_file_r = os.path.join(output_folder, f"{key}_r_select_seq.fasta")
@@ -136,11 +144,16 @@ class Methods(object):
                         fasta_output.write(f">{record.id}\n")
                         if pos_first > 300:
                             fasta_output.write(f"{record.seq[pos_first-300:pos_first]}\n")
+                        elif pos_first < 25:
+                            fasta_output.write(f"\n")
                         else:
                             fasta_output.write(f"{record.seq[1:pos_first]}\n")
+
                         fasta_output2.write(f">{record.id}\n")
                         if len(record.seq)-pos_second > 300:
                             fasta_output2.write(f"{record.seq[pos_second:pos_second+300]}\n")
+                        elif len(record.seq)-pos_second < 25:
+                            fasta_output2.write(f"\n")
                         else:
                             fasta_output2.write(f"{record.seq[pos_second:len(record.seq)]}\n")
                         found = True
@@ -162,9 +175,12 @@ class Methods(object):
 
                 out_res = f'{output_folder}all_res/'
                 Methods.make_folder(out_res)
-                blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6', '-max_hsps', '1']
-                subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
-                
+                try:
+                    blast_cmd = ['blastn', '-query', h, '-db', f'{output_folder}ref_db', '-out', f'{out_res}{key}_{pos}_results.txt', '-outfmt', '6', '-max_hsps', '1']
+                    subprocess.run(blast_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
+                except subprocess.CalledProcessError:
+                    pass
+
                 with open(f"{out_res}{key}_{pos}_results.txt", 'r') as file:
                     reader = csv.reader(file, delimiter="\t")
                     for row in reader:
@@ -197,7 +213,6 @@ class Methods(object):
                         f.write(f"{query_id}\tnd\tnd\t{row_align[1]}\t{row_align[2]}\tnd\n")
                     else:
                         f.write(f"{query_id} error \n")
-         
     @staticmethod
     def run_res(key, align, ecoli_positif, output_folder):
         rows = []  # Utilisation d'une liste temporaire pour stocker les lignes
@@ -248,11 +263,14 @@ class Methods(object):
             # Boucle à travers 'ecoli_positif'
             for j in range(len(ecoli_positif)):
                 ens2 = range(int(ecoli_positif['first_pos'][j]), int(ecoli_positif['second_pos'][j]) + 1)
+                if len(ens1) != 40:
+                    if len(ens2)+100 < len(ens1) or len(ens2)-100 > len(ens1):
+                        continue
 
                 # Créer une table avec un comptage des correspondances et des erreurs
                 res = list(set(ens1) & set(ens2))
 
-                if len(res) > 0:
+                if len(res) > 0.1*len(ens1):
                     if var == 'l':
                         if w == 1:
                             pos_r_l, res_l = 0, 0
@@ -289,7 +307,7 @@ class Methods(object):
                         new_row = {
                             "query_id": df_align['query_id'][i],
                             "match": len(res),
-                            "similarity": ecoli_positif['similarity'][j],
+                            "similarity": round(ecoli_positif['similarity'][j],3),
                             "gene": ecoli_positif['new_gene'][j],
                             "pos_l_read": pos_r_r,
                             "pos_l_insert": pos_g_r,
@@ -302,7 +320,7 @@ class Methods(object):
                         new_row = {
                             "query_id": df_align['query_id'][i],
                             "match": len(res),
-                            "similarity": ecoli_positif['similarity'][j],
+                            "similarity": round(ecoli_positif['similarity'][j],3),
                             "gene": ecoli_positif['new_gene'][j],
                             "pos_l_read": pos_r_l,
                             "pos_l_insert": pos_g_l,
@@ -319,7 +337,8 @@ class Methods(object):
 
         # Sauvegarder dans un fichier CSV
         output_file = os.path.join(output_folder, f"{key}_resultats.csv")
-        df.to_csv(output_file, index=False)
+        if not df.empty:
+            df.to_csv(output_file, index=False)
 
     def resultat(align, position, output_folder):
         Methods.make_folder(output_folder)
@@ -339,6 +358,7 @@ class Methods(object):
     def final(file, pos_ref, output_folder): 
         # Créer une liste pour stocker les lignes du fichier final
         rows = []
+        rows2 = []
         
         for key, f in file.items():
             # Lire le fichier CSV
@@ -346,9 +366,6 @@ class Methods(object):
                 df = pd.read_csv(f)
             except pd.errors.EmptyDataError:
                 print(f"Le fichier CSV du {key} ne contient aucune donnée lisible .")
-                continue
-            except FileNotFoundError:
-                print("Le fichier n'existe pas.")
                 continue
             
             # Compter les occurrences et calculer les pourcentages pour la colonne 'gene'
@@ -366,6 +383,13 @@ class Methods(object):
                 row[f'gene_{i}'] = gene
                 row[f'gene_{i}_nb'] = count
                 row[f'gene_{i}_pourcentage'] = pourcentage[gene]
+                
+                row2 = {'methode': 'assembly', 'key': key ,'gene': gene}
+                rows2.append(row2)
+
+            # Convertir la liste de lignes en DataFrame
+            result_df2 = pd.DataFrame(rows2)
+
             
             # Ajouter la ligne au tableau final
             rows.append(row)
@@ -376,3 +400,8 @@ class Methods(object):
         # Écrire le DataFrame dans le fichier CSV de sortie
         output_file = os.path.join(output_folder, f"resultats_all.csv")
         result_df.to_csv(output_file, index=False, sep=';')
+
+        output_file = os.path.join(output_folder, f"res_form.csv")
+        result_df2.to_csv(output_file, index=False, sep=';')
+
+
